@@ -100,7 +100,18 @@ that exercises the app end to end, not just its individual functions.
 
 ## Try it
 
-`[link to your deployed site here]`
+`https://ariharasudhan.com/resumit/`
 
 Sign-up is required (there's no local-only mode — your data lives in
 your own account, synced across devices from the start).
+
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For any queries or contributions, feel free to reach out to:
+
+- **Ari Adaikalam** – [Email](mailto:ariadaikalam1234@gmail.com)
