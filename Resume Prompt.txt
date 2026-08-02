@@ -1,0 +1,68 @@
+I'm going to give you a resume PDF. Convert its content into a JSON object matching the exact schema below, so I can import it into a resume-builder app called ResumIT. Follow these rules exactly:
+
+- Output ONLY the JSON as JSON file, no explanation, no markdown code fences.
+- Invent a short unique string "id" for every object that needs one (experience entries, their bullets, project entries, their bullets, skill categories, summary, references). Any format is fine (e.g. "exp1", "exp1b1", "proj1", "proj1b1") as long as every id is unique within the file.
+- Split every resume bullet point into its own object in the relevant "bullets" array. Preserve the original wording exactly -- don't rephrase, summarize, or fix grammar.
+- If a bullet has a specific word or phrase bolded in the original PDF, wrap that exact text in **double asterisks** in the "text" field (this app renders **word** as bold). If nothing is bolded, don't add any.
+- "tags" arrays should always be empty arrays: [].
+- Only include a "customSections" entry for content that doesn't fit experience/projects/education/skills/references/summary (e.g. certifications, publications, awards). Use "contentType":"bullets" with a "bullets" array (same shape as experience bullets) for a list, or "contentType":"paragraph" with a "text" string for prose. Leave "customSections": [] if nothing like that exists on the resume.
+- If the resume has only one work-experience "track" per role (no separate sub-category/industry label), leave "tag" as an empty string.
+- Do not invent content that isn't on the resume. Leave a field as an empty string "" if the resume doesn't have that information.
+
+Schema:
+
+{
+  "library": {
+    "meta": {
+      "name": "",
+      "phone": "",
+      "email": "",
+      "location": "",
+      "linkedin": "",
+      "github": "",
+      "portfolio": ""
+    },
+    "summaries": [
+      { "id": "", "label": "Default", "text": "", "tags": [] }
+    ],
+    "experience": [
+      {
+        "id": "",
+        "company": "",
+        "tag": "",
+        "role": "",
+        "location": "",
+        "dates": "",
+        "bullets": [
+          { "id": "", "text": "", "tags": [] }
+        ]
+      }
+    ],
+    "projects": [
+      {
+        "id": "",
+        "title": "",
+        "dates": "",
+        "bullets": [
+          { "id": "", "text": "", "tags": [] }
+        ]
+      }
+    ],
+    "education": [
+      {
+        "id": "",
+        "school": "",
+        "degree": "",
+        "location": "",
+        "dates": ""
+      }
+    ],
+    "skills": [
+      { "id": "", "label": "Category name as shown on the resume", "text": "Comma-separated skills in that category, ending with a period." }
+    ],
+    "references": [
+      { "id": "", "name": "", "title": "Job title, Company name", "contact": "Phone: ...; Email: ..." }
+    ],
+    "customSections": []
+  }
+}
