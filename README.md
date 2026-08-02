@@ -103,7 +103,7 @@ that exercises the app end to end, not just its individual functions.
 `https://ariharasudhan.com/resumit/`
 
 Sign-up is required (there's no local-only mode — your data lives in
-your own account, synced across devices from the start).
+your own account, synced across devices from the start). Give the `Resume Prompt.txt` to any AI along with your resume and import the json to it gives to ResumIT to get instant access to your existing resumes in ResumIT
 
 
 ## License
