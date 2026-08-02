@@ -61,6 +61,10 @@ computer — sign in and your data is there.
 - **Optional GitHub backup** — a one-way, push-only mirror of your
   data to a GitHub repo of your choosing, entirely separate from the
   primary account data.
+- **Try it without an account** — guest mode gives you the full editor
+  with your data saved to that browser only; sign up whenever you
+  actually want it synced across devices, backed up to GitHub, or
+  exported to PDF.
 
 ## Cover letters, too
 
@@ -102,8 +106,12 @@ that exercises the app end to end, not just its individual functions.
 
 `https://ariharasudhan.com/resumit/`
 
-Sign-up is required (there's no local-only mode — your data lives in
-your own account, synced across devices from the start). Give the `Resume Prompt.txt` to any AI along with your resume and import the json to it gives to ResumIT to get instant access to your existing resumes in ResumIT
+No sign-up required to try it — "Continue without an account" opens
+the full editor with your data saved to that browser only. Sign up
+whenever you want it synced across devices, backed up to GitHub, or
+exported to PDF. 
+
+Give the `Resume Prompt.txt` to any AI along with your resume and import the json to it gives to ResumIT to get instant access to your existing resumes in ResumIT
 
 
 ## License
