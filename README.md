@@ -1,125 +1,93 @@
-# ResumIT
+# DraftShelf
 
-**A resume builder for people who apply to more than one job.**
+A resume builder built around one idea: your work history doesn't
+change every time you apply somewhere, but which parts of it you lead
+with should.
 
-## The problem
+**[ariharasudhan.com/draftshelf](https://ariharasudhan.com/draftshelf/)**
 
-Tailoring a resume for each application usually means one of two things:
-keeping a single "master" resume that's either too generic to be
-competitive or slowly turning into an unreadable pile of everything
-you've ever done, or manually copy-pasting sections between a dozen
-slightly different Word files and hoping you didn't leave an old job
-title in there by accident. Neither scales past a handful of
-applications, and both make it easy to send out a resume with a typo
-or a stale bullet point you meant to cut months ago.
+## Why this exists
 
-## The idea
+Most people end up with one of two messes once they've applied to more
+than a few jobs. Either there's a single "master" resume that's grown
+into a list of everything they've ever done — too long, too generic,
+and never quite right for the job in front of them — or there's a
+folder of a dozen near-duplicate Word files, each hand-edited for one
+application, with no way to tell which one has the current phone
+number or the fixed typo. Both make it easy to send out something
+stale, and neither actually gets faster the more you use it.
 
-ResumIT splits a resume into two layers instead of one:
+## How it works
 
-- **Library** — every job, project, degree, skill category, summary,
-  and reference you've ever had, written once. Each entry can carry
-  several bullet points, and every bullet is written once, kept
-  up to date in one place, and never duplicated by hand.
-- **Version** — a resume tailored to one specific job is just a
-  *selection* from the Library: which entries to include, which
-  bullets under each one, what order they print in, plus that job's
-  own title, dates-applied, and job-description text. Nothing gets
-  copy-pasted; a version just points at the parts of the Library it
-  wants.
+DraftShelf keeps two things separate that most tools bolt together:
 
-Editing a bullet in the Library updates it everywhere that bullet is
-used. Tailoring a new version takes a few checkbox clicks, not a
-rewrite. Because it's a real database (not a spreadsheet or a folder
-of files), it's also usable from your phone, laptop, or a friend's
-computer — sign in and your data is there.
+- **Your Library** is everything you've ever done — every job,
+  project, degree, skill, summary, and reference, written once. Each
+  entry holds bullet points, and each bullet is a single source of
+  truth: fix it here and it's fixed everywhere it's used.
+- **A Version** is one tailored resume — not a copy of anything, just
+  a *pointer* into the Library: which entries are included, which
+  bullets under each, what order they print in, plus that job's own
+  title and dates. Building a new one is picking checkboxes, not
+  retyping a resume.
 
-## What it does
+Change a bullet once and every version that uses it updates. Because
+it's a real account with a real database behind it, it also follows
+you — start a version on your laptop, finish it on your phone.
 
-- **Real pagination** — resumes lay out across pages the way a
-  properly typeset document should: an entry or a bullet is never
-  split across a page break, section headings are never left stranded
-  alone at the bottom of a page, and the live preview always matches
-  what actually gets exported.
-- **Exports that pass an ATS** — PDF export renders server-side
-  through a real headless browser, so the output is genuine selectable
-  text (including clickable links), not a screenshot glued into a PDF
-  wrapper. DOCX export is a second, independent output built as a real
-  Word document, so it opens and edits cleanly in Word or Google Docs
-  too.
-- **Per-version overrides** — need to tweak one bullet's wording for a
-  single application without changing it everywhere else? Every field
-  can be overridden for just that one version, without ever touching
-  the shared Library entry.
-- **A style panel, not a fixed template** — fonts, sizes, spacing,
-  margins, page size, and bullet style are all adjustable per version
-  (or set once as your account default for every new version),
-  without needing to know CSS or touch a template file.
-- **Job-description keyword matching** — paste a job posting in and
-  see which of its key terms already show up in your tailored resume,
-  and which don't.
-- **Optional GitHub backup** — a one-way, push-only mirror of your
-  data to a GitHub repo of your choosing, entirely separate from the
-  primary account data.
-- **Try it without an account** — guest mode gives you the full editor
-  with your data saved to that browser only; sign up whenever you
-  actually want it synced across devices, backed up to GitHub, or
-  exported to PDF.
+## What it actually does
 
-## Cover letters, too
+- **Tag-driven tailoring.** Bullets and skills carry reusable tags;
+  "Fill in with tag" pulls in everything tagged for a role in one
+  click, and just as easily undoes it. Skill Sets bundle categories
+  into a named group you can apply as a whole instead of re-checking
+  the same boxes every time.
+- **Overrides when you need an exception.** Need one bullet worded
+  differently for a single application without touching the shared
+  version? Any field can be overridden per-version, or you can choose
+  version-by-version whether a Library edit follows through to
+  existing resumes or leaves them as they were.
+- **A real style panel.** Fonts, sizes, spacing, margins, and page
+  size are adjustable per version or set once as your default — no
+  template file to hunt down and edit.
+- **Import from wherever you're starting.** Restore your own backup
+  exactly, reconcile an outside file against your existing Library
+  item by item, or bring in a version that stays fully private until
+  you choose to promote pieces of it into your real Library. No PDF or
+  Word file to start from? Paste a ready-made prompt into any AI
+  chatbot and it hands back something DraftShelf can import directly.
+- **Exports that hold up.** Pagination never splits a bullet or an
+  entry across a page break, and the live preview matches the export
+  exactly, because it's rendered by an actual headless browser — real
+  selectable text, not a screenshot. DOCX export is a second,
+  independent path that opens cleanly in Word or Google Docs. A
+  matching cover letter tool shares none of the resume's data model —
+  it's a one-off by design, not something you build a library of.
+- **Nothing gets lost by accident.** Undo/redo throughout, a save
+  status that's always visible, a two-device-editing conflict banner
+  instead of a silent overwrite, and a Trash for deleted versions
+  instead of a permanent one-click delete.
+- **Everywhere it needs to be.** Light and dark theme, real
+  bookmarkable URLs with working back/forward, and a layout that holds
+  up on a phone.
 
-A resume answers "what have you done"; a cover letter answers "why
-this job." ResumIT includes a lightweight cover letter tool alongside
-the resume builder, built for the same one-tailored-document-per-job
-workflow:
+## Under the hood
 
-- Your name and contact details pre-fill automatically from your
-  Library, so you're not retyping them — but they're independently
-  editable per letter, so tweaking one for a specific application
-  never touches your saved account data.
-- Three typographic looks — Modern, Classic, Minimal — pick whichever
-  fits the tone of the letter, no design work required.
-- A cover letter is always exactly one page, by design — there's no
-  pagination to fight, just write and it fits.
-- Exports as a real PDF with genuine, selectable text, drawn directly
-  rather than produced from a screenshot, so it looks and behaves like
-  any normal document you'd send.
-- Deliberately not saved to your account the way resumes are — a
-  cover letter is a one-off for a single application, not something
-  you build up and reuse in a library, so it stays only for the
-  current session and is never synced or stored.
+Plain HTML, CSS, and JavaScript — no framework, no build step, no
+bundler. Every script loads straight from a CDN or a local file in
+dependency order, and the whole thing deploys by copying the folder
+onto any static host. [Supabase](https://supabase.com) (Postgres +
+Auth) is the backend, with row-level security doing the actual access
+control rather than anything client-side; signing up is required, with
+no local-only or guest fallback. PDF export runs server-side through a
+small Python service driving headless Chromium, so exported resumes
+carry real selectable text rather than a rasterized image. DOCX export
+runs entirely client-side. The test suite is plain Node scripts — no
+framework — mixing pure-function tests with jsdom-driven integration
+tests that exercise the real UI.
 
-## How it's built
+---
 
-No framework and no build step — the whole app is plain HTML, CSS,
-and JavaScript loaded directly by the browser, deployable by dragging
-a folder onto any static host. The backend is Supabase (Postgres +
-Auth), with row-level security as the actual access-control boundary
-rather than anything enforced client-side. PDF generation runs as a
-small server-side service using headless Chromium so the exported
-file is a first-class document, not an image — with a second,
-independent fallback host so a single provider's outage doesn't take
-export down entirely. Everything ships with an automated test suite
-that exercises the app end to end, not just its individual functions.
-
-## Try it
-
-`https://ariharasudhan.com/resumit/`
-
-No sign-up required to try it — "Continue without an account" opens
-the full editor with your data saved to that browser only. Sign up
-whenever you want it synced across devices, backed up to GitHub, or
-exported to PDF. 
-
-Give the `Resume Prompt.txt` to any AI along with your resume and import the json to it gives to ResumIT to get instant access to your existing resumes in ResumIT
-
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For any queries or contributions, feel free to reach out to:
-
-- **Ari Adaikalam** – [Email](mailto:ariadaikalam1234@gmail.com)
+Free to use, permanently — sign up with email/password, Google, or
+GitHub, and everything you enter stays private to your account, synced
+to every device you sign into.
