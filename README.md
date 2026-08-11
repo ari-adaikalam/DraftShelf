@@ -91,3 +91,16 @@ tests that exercise the real UI.
 Free to use, permanently — sign up with email/password, Google, or
 GitHub, and everything you enter stays private to your account, synced
 to every device you sign into.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For any queries or contributions, feel free to reach out to:
+
+- **Ari Adaikalam** – [Email](mailto:ariadaikalam1234@gmail.com)
+
