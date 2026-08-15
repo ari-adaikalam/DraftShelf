@@ -72,7 +72,7 @@ function buildDocxDocument(docxLib, resolved, style, pageSize, meta, referencesM
     if(!val) return;
     if(contactRuns.length) contactRuns.push(contactSep());
     contactRuns.push(new ExternalHyperlink({
-      link: val,
+      link: normalizeUrl(val),
       children: [ new TextRun({ text: label, style:'Hyperlink', font:FONT, size: pt2half(style.fsContact) }) ]
     }));
   });
@@ -88,7 +88,15 @@ function buildDocxDocument(docxLib, resolved, style, pageSize, meta, referencesM
       if(!resolved.experience.length) return;
       children.push(headingParagraph('Work Experience'));
       resolved.experience.forEach(e=>{
-        children.push(rowParagraph([ new TextRun({...bd(e.company,'company'), font:FONT, size:pt2half(style.fsBody)}) ], e.location, style.fsBody));
+        // e.tag ("Note (optional)" in the Library tab -- company/role/dates/location's own
+        // sibling field, predates the separate tags[] system) prints in the live preview/PDF
+        // as "Company (tag)" (buildExperienceEntryNode(), js/06_app.js) but was missing here
+        // entirely -- a real, documented gap (CLAUDE.md's "Skill Sets" section notes it under
+        // "still missing from DOCX export"). Appended as its own non-bold run, matching the
+        // preview's `font-weight:400` treatment regardless of whether Company itself is bold.
+        const companyRuns = [ new TextRun({...bd(e.company,'company'), font:FONT, size:pt2half(style.fsBody)}) ];
+        if(e.tag) companyRuns.push(new TextRun({ text:' ('+e.tag+')', font:FONT, size:pt2half(style.fsBody) }));
+        children.push(rowParagraph(companyRuns, e.location, style.fsBody));
         children.push(rowParagraph([ new TextRun({...bd(e.role,'role'), font:FONT, size:pt2half(style.fsBody)}) ], e.dates, style.fsBody));
         e.bullets.forEach(b=> children.push(bulletParagraph(b.text, style.fsBody)));
       });
@@ -125,7 +133,7 @@ function buildDocxDocument(docxLib, resolved, style, pageSize, meta, referencesM
         resolved.references.forEach(r=>{
           children.push(new Paragraph({ spacing:{after:2*20},
             children:[ new TextRun({...bd(r.name,'referenceName'), font:FONT, size:pt2half(style.fsBody)}),
-                       new TextRun({ text: r.title?('  —  '+r.title):'', font:FONT, size:pt2half(style.fsBody) }) ] }));
+                       new TextRun({ text: r.title?('  -  '+r.title):'', font:FONT, size:pt2half(style.fsBody) }) ] }));
           children.push(new Paragraph({ spacing:{after:style.gapEntry*20},
             children:[ new TextRun({ text:r.contact||'', font:FONT, size:pt2half(style.fsBody) }) ] }));
         });

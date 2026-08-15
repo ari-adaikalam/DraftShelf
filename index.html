@@ -2,8 +2,71 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- A real, reported bug, and the actual root cause of "blank screen on reload inside a
+     version" -- every asset reference below (css/style.css, js/*.js, assets/*.png) is a
+     RELATIVE URL, which resolves against the browser's CURRENT URL PATH, not this app's own
+     root. That's invisible at the plain /draftshelf/ root, but breaks completely the moment
+     this same index.html is reached from a deeper routed URL (e.g. /draftshelf/editor/abc123,
+     see js/06_app.js's own URL-routing section) -- css/style.css there resolves to the
+     nonexistent /draftshelf/editor/css/style.css, which the SPA rewrite (vercel.json) then
+     serves *this same index.html* for instead of a 404 -- so the browser gets HTML back where
+     it expected CSS/JS ("Unexpected token '<'" on every script, "non CSS MIME type" on the
+     stylesheet -- confirmed live from a real report, console errors matching exactly this).
+     A <base> element fixes every relative reference in the whole document at once -- the
+     standard fix for any SPA deployed at a non-root path. Injected here, dynamically, as the
+     very first thing in <head> (order matters -- this MUST run before any relative-URL
+     resource tag below it, so no defer/async on this script), rather than a hardcoded
+     <base href="/draftshelf/">, specifically so serving this app from a plain local
+     static-file-server root (this project's own dev/test workflow) still works -- same
+     detection ROUTE_BASE (js/06_app.js) already uses, kept in sync with it deliberately: both
+     read window.location.pathname the same way, so if the real deployment path ever changes,
+     only one string needs updating in each place. -->
+<script>
+(function(){
+  var p = window.location.pathname;
+  var base = (p==='/draftshelf' || p.indexOf('/draftshelf/')===0) ? '/draftshelf/' : '/';
+  var baseEl = document.createElement('base');
+  baseEl.href = base;
+  document.head.appendChild(baseEl);
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ResumIT</title>
+<title>DraftShelf</title>
+<meta name="description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes -- free, no exceptions.">
+<!-- Open Graph / Twitter Card -- what WhatsApp/iMessage/Slack/etc. actually read when this
+     link is shared. Without these, a scraper falls back to whatever it can find (the bare
+     favicon, stretched to fill a link-preview card, and no description at all) -- exactly
+     the broken-looking preview that prompted adding these. og:image/url need real absolute
+     URLs (a relative path resolves against the scraper's own origin, not this site's). -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DraftShelf">
+<meta property="og:title" content="DraftShelf -- Tailor the content. DraftShelf handles the rest.">
+<meta property="og:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes -- free, no exceptions.">
+<meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://ariharasudhan.com/draftshelf/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DraftShelf -- Tailor the content. DraftShelf handles the rest.">
+<meta name="twitter:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes -- free, no exceptions.">
+<meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
+<link rel="icon" type="image/png" href="assets/draftshelf-icon.png">
+<!-- Real, reported gap: even after fixing the topbar flash and deferring jsPDF/docx.js, a
+     visible ~1s gap remained before the actual landing page/dashboard content appears -- real
+     network time, not a rendering issue: the Supabase client has to be fetched from a CDN
+     (fresh DNS + TLS handshake on a cold connection), THEN the session gets checked, THEN
+     account data loads, each one only able to start once the last one finishes. preconnect
+     tells the browser to do the DNS+TLS handshake for both hosts immediately, in parallel with
+     the rest of this page loading, instead of only starting once js/00_supabase.js's own
+     dynamic import()/fetch calls actually run partway through boot -- shaves a real chunk of
+     that unavoidable chain off, it doesn't just hide it. modulepreload goes one step further
+     for the Supabase client specifically: starts fetching the actual module content early too,
+     not just the connection. crossorigin is required on both -- without it the browser can't
+     reuse the preconnected/preloaded connection for the real fetch that follows, since ES
+     modules and cross-origin fetches are made with CORS mode by default. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://aenpxggiazgwoidjikii.supabase.co" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm" crossorigin>
 <link rel="stylesheet" href="css/style.css">
 <script>
 // Pre-paint theme bootstrap -- must run before any CSS renders to avoid a flash of the
@@ -16,13 +79,37 @@
   document.documentElement.setAttribute('data-theme', theme);
 })();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://unpkg.com/docx@8.2.4/build/index.umd.js"></script>
+<!-- defer, not a plain blocking <script src> -- a real, reported bug: jsPDF and docx.js are
+     sizable third-party libraries, and window.jspdf/window.docx are only ever read at the
+     moment "Download PDF"/"Download DOCX" is actually clicked (js/06_app.js), never during
+     page load. As plain blocking tags in <head>, the browser couldn't paint ANYTHING --
+     not even the background -- until both had fully downloaded and executed, which on a
+     cold cache (fresh system restart: no disk cache, cold DNS/TLS to two different CDN
+     hosts) was visibly 1-2 seconds of blank screen before the app could even start booting.
+     defer lets the parser continue immediately (painting the page shell right away) while
+     these download in the background -- still guaranteed to finish, in this same order,
+     before DOMContentLoaded, long before a user could actually reach a Download button. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://unpkg.com/docx@8.2.4/build/index.umd.js"></script>
+<!-- GSAP, added on request (UI/UX audit -- a few specific micro-interactions genuinely
+     benefit from real easing/spring physics a plain CSS transition can't replicate: the theme
+     toggle's flip, the Dashboard card hover lift, the shared modal-entrance animation used by
+     all three modal systems -- see initMicroInteractions() in js/06_app.js). Same
+     cdnjs.cloudflare.com host jsPDF already loads from just above, deliberately -- no new
+     DNS/TLS handshake beyond what this page already pays for. defer, same reasoning as
+     jsPDF/docx.js's own comment: nothing here is needed until the user actually interacts
+     with something, never during initial paint. Everything else animation-related in this app
+     (view transitions, dropdowns, tab panels) deliberately stays plain CSS -- GSAP is used
+     only where it visibly earns its weight, not applied uniformly. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="brand"><div class="mark"></div>ResumIT</div>
+  <div class="brand">
+    <img class="brand-logo brand-logo-light" src="assets/draftshelf-logo.png" alt="DraftShelf">
+    <img class="brand-logo brand-logo-dark" src="assets/draftshelf-logo-dark.png" alt="DraftShelf">
+  </div>
   <div id="topbarAuthedControls" style="display:none;flex:1;align-items:center;justify-content:space-between;gap:16px;">
     <div class="nav">
       <button data-view="dashboard" class="active">Dashboard</button>
@@ -32,20 +119,17 @@
     </div>
     <div class="gh-status">
       <span id="saveStatusText" class="save-status-text ok" title="Library and version edits autosave to your account a moment after you stop typing.">All changes saved</span>
-      <button class="theme-toggle" id="btnThemeToggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
-      <button class="btn btn-ghost btn-sm" id="btnExportJson">Export JSON</button>
-      <button class="btn btn-ghost btn-sm" id="btnImportJson">Import JSON</button>
+      <a class="theme-toggle" href="help.html" target="_blank" rel="noopener" title="Help &amp; FAQ" aria-label="Help &amp; FAQ" id="btnHelpAuthed"></a>
+      <button class="theme-toggle" id="btnThemeToggle" data-role="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
+      <button class="btn btn-ghost btn-sm" id="btnImportResume">Import Resume</button>
       <input type="file" id="importFileInput" accept="application/json" style="display:none;">
       <div class="settings-menu-wrap">
         <button class="theme-toggle settings-gear" id="btnSettingsMenu" title="Settings" aria-label="Settings"></button>
         <div id="settingsDropdown" class="settings-dropdown" style="display:none;">
           <button class="settings-dropdown-item" data-view="preferences">Preferences</button>
+          <button class="settings-dropdown-item" id="btnExportJson">Export Shelf</button>
+          <button class="settings-dropdown-item" id="btnChangePassword">Change password</button>
           <div class="settings-divider"></div>
-          <div id="guestNotice" class="guest-notice" style="display:none;">
-            <div class="gh-section-label">Guest session</div>
-            <p>You're not signed in. This resume is saved to this browser only -- sign up to keep it and sync across every device.</p>
-            <button class="btn btn-brass btn-sm" id="btnGuestSignUp" style="width:100%;">Sign up</button>
-          </div>
           <div id="ghSection">
             <div class="settings-gh-status">
               <span class="dot" id="ghDot"></span>
@@ -58,17 +142,51 @@
       <button class="btn btn-ghost btn-sm" id="btnSignOut">Sign out</button>
     </div>
   </div>
+  <!-- Shown only when signed out (inverse of #topbarAuthedControls, same two toggle points --
+       loadAuthedAppState() vs. showSignedOutState(), js/06_app.js). A real,
+       reported gap: the topbar previously showed nothing at all here for a signed-out visitor
+       (not even the theme toggle, which lived inside #topbarAuthedControls despite having
+       nothing to do with auth state) -- reads as broken/unfinished rather than intentional.
+       Starts hidden (display:none), same as #topbarAuthedControls's own default -- a second,
+       real, reported gap: this used to start visible by default, so a SIGNED-IN visitor
+       reloading the page saw the signed-out topbar (and the empty #viewAuth behind it) flash
+       for a moment before init() finished checking their session and loadAuthedAppState() took
+       over. Neither topbar state is correct until that check resolves, so neither should show
+       -- init() -> loadAuthedAppState()/showSignedOutState() (js/06_app.js) reveals whichever
+       one actually applies once it knows. -->
+  <div id="topbarSignedOut" style="display:none;flex:1;align-items:center;justify-content:flex-end;gap:10px;">
+    <a class="theme-toggle" href="help.html" target="_blank" rel="noopener" title="Help &amp; FAQ" aria-label="Help &amp; FAQ" id="btnHelpOut"></a>
+    <button class="theme-toggle" id="btnThemeToggleOut" data-role="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
+    <button class="btn btn-ghost btn-sm" id="btnTopbarSignIn">Sign in</button>
+    <button class="btn btn-brass btn-sm" id="btnTopbarSignUp">Create account</button>
+    <!-- Shown instead of the two buttons above whenever AUTH_MODE isn't 'landing' (see
+         renderAuthScreen(), js/06_app.js) -- a real, reported gap: "Sign in"/"Create account"
+         stayed visible in the topbar even while already on the sign-in/sign-up form itself,
+         redundant at best and confusing at worst. Closes back to the homepage, same action
+         the in-box "<- Back" link already uses. -->
+    <button class="theme-toggle" id="btnTopbarClose" title="Close" aria-label="Close" style="display:none;"></button>
+  </div>
   <button class="theme-toggle" id="btnMobileMenu" title="Menu" aria-label="Menu" style="display:none;"></button>
 </div>
 
 <div id="ghPanelWrap"></div>
+<div id="trashPanelWrap"></div>
+<div id="libraryImpactWrap"></div>
 <div id="entryEditModalWrap"></div>
+<div id="libraryPickerWrap"></div>
+<div id="changePasswordModalWrap"></div>
 
-<div class="view active" id="viewAuth"></div>
+<!-- Static placeholder, not JS-rendered -- see css/style.css's own comment on .boot-loading for
+     why this has to already exist in the raw HTML: the real blank-screen window happens before
+     init() (js/06_app.js) has even started running, so anything JS-driven would already be too
+     late to cover it. renderAuthScreen()/switchView()/handleBootFailure() (js/06_app.js) all
+     supersede this automatically once boot actually finishes, whatever the outcome -- no
+     separate cleanup needed. -->
+<div class="view active" id="viewAuth" tabindex="-1"><div class="boot-loading"><span class="spinner spinner-lg"></span><span>Loading DraftShelf&hellip;</span></div></div>
 
 <div id="conflictBannerWrap"></div>
 
-<div class="view" id="viewDashboard">
+<div class="view" id="viewDashboard" tabindex="-1">
   <div class="stats" id="statsRow"></div>
   <div class="toolbar">
     <input type="text" id="searchInput" placeholder="Search versions, companies, roles" style="max-width:300px;">
@@ -77,11 +195,12 @@
       <option value="company">Sort: company</option>
       <option value="applied">Sort: date applied</option>
     </select>
+    <button class="btn btn-ghost btn-sm" id="btnTrashOpen" style="margin-left:auto;">Trash</button>
   </div>
   <div class="cards" id="versionCards"></div>
 </div>
 
-<div class="view" id="viewLibrary">
+<div class="view" id="viewLibrary" tabindex="-1">
   <div class="lib-tabs" id="libTabs">
     <button data-kind="experience" class="active">Experience</button>
     <button data-kind="projects">Projects</button>
@@ -90,18 +209,24 @@
     <button data-kind="summaries">Summaries</button>
     <button data-kind="references">References</button>
     <button data-kind="customSections">Custom Sections</button>
+    <button data-kind="tagOptions">Tags</button>
     <button data-kind="meta">Header</button>
   </div>
   <div id="libPanels"></div>
 </div>
 
-<div class="view" id="viewPreferences"></div>
+<div class="view" id="viewPreferences" tabindex="-1"></div>
 
-<div class="view" id="viewCoverLetter"></div>
+<div class="view" id="viewCoverLetter" tabindex="-1"></div>
+<div class="view" id="viewImportReview" tabindex="-1"></div>
 
-<div class="view" id="viewEditor">
+<div class="view" id="viewEditor" tabindex="-1">
   <div class="editor-layout">
-    <div class="ed-panel" id="edPanel"></div>
+    <!-- sel-cards: the "full card" treatment for the entry/bullet checklists (css/style.css) --
+         the shipped default. Its compact sibling (.sel-item/.sel-bullet's own unscoped rules,
+         same file) is still fully intact, just currently overridden by the more specific
+         #edPanel.sel-cards rules below -- remove this class to switch back, no CSS to write. -->
+    <div class="ed-panel sel-cards" id="edPanel"></div>
     <div class="stage">
       <div class="stage-controls">
         <div><button class="btn btn-ghost btn-sm" id="btnBackDash">&larr; Dashboard</button></div>
@@ -128,13 +253,22 @@
 <script src="js/01_core.js"></script>
 <script src="js/02_paginate.js"></script>
 <script src="js/03_model.js"></script>
+<script src="js/03c_import_review.js"></script>
 <script src="js/03b_history.js"></script>
 <!-- 01b_data.js loads here, after 03_model.js, not right after 01_core.js as its filename
      prefix might suggest -- DB.getLibrary() calls 03_model.js's emptyLibrary() to seed a
      brand-new account's first row. -->
 <script src="js/01b_data.js"></script>
-<script src="js/04_jdmatch.js"></script>
 <script src="js/05_export_docx.js"></script>
 <script src="js/06_app.js"></script>
+<!-- Vercel Web Analytics / Speed Insights -- plain static-HTML integration (no npm package,
+     no Next.js/framework here to import a component into -- this app is deliberately
+     zero-build, see CLAUDE.md's "Architecture" section). Absolute paths (not relative) since
+     this page is served from /draftshelf/ on the real site, but these endpoints always live
+     at the domain root regardless of which page loads them. Requires "Web Analytics" and
+     "Speed Insights" to each be turned on once in the portfolio Vercel project's dashboard --
+     the tags alone don't start collecting data until that's enabled. -->
+<script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
 </body>
 </html>

@@ -33,10 +33,35 @@ var PDF_SERVICE_URL = 'https://ariadaikalam-swat-plant-sender.hf.space/render';
 // case the first one fails.
 var PDF_SERVICE_URL_FALLBACK = 'https://resume-forge-k0qt.onrender.com/render';
 
-window.__sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
-  .then(({ createClient }) => {
+// A real, reported bug: a failed CDN import here used to be swallowed silently (a bare
+// .catch() that only logged) -- __sbReady still resolved as if nothing went wrong, so
+// window.supabase stayed undefined and init() (js/06_app.js) threw uncaught the moment it
+// tried to use it, with no try/catch anywhere around it. The visible result: the topbar's
+// static HTML still shows (it's not gated on any JS), but neither the sign-in buttons nor the
+// dashboard ever appear, and nothing retries -- a permanently blank page. "Happens after some
+// inactivity" fits exactly: the very first network request right after a laptop wakes from
+// sleep is a classic time for a transient failure, before the connection is fully back up.
+//
+// Fixed two ways: one silent retry here (a short delay covers the "network wasn't ready yet"
+// case entirely, invisibly -- most real-world hits of this never even reach the point of
+// showing an error), and init() itself now has a real try/catch with a recoverable fallback
+// UI (see handleBootFailure()) for the case where it still fails after that.
+//
+// The retry has to use a different URL (a cache-busting query param), not the identical one --
+// confirmed live: a browser's ES module loader caches a dynamic import() by its exact URL,
+// including a *failed* one, so a second import() of the same bare URL resolves straight from
+// that cached failure instead of ever making a new network request at all. Verified via
+// Playwright with the CDN request intercepted: without the cache-busting param, the retry
+// never even reached the network a second time.
+function loadSupabaseClient(bust){
+  const url = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm' + (bust ? '?retry='+bust : '');
+  return import(url).then(({ createClient }) => {
     window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  })
-  .catch(e => {
-    console.error('Failed to load Supabase client:', e);
   });
+}
+window.__sbReady = loadSupabaseClient().catch(e => {
+  console.error('Failed to load Supabase client, retrying once:', e);
+  return new Promise(r => setTimeout(r, 1500)).then(() => loadSupabaseClient(Date.now()));
+  // If this retry also fails, the rejection propagates for real this time -- init()'s own
+  // try/catch is what handles that, not another silent swallow here.
+});

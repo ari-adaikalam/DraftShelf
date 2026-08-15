@@ -8,7 +8,21 @@
 :root{
   --accent:#B8860B; --accent-light:#D4A017; --accent-dark:#8B6508; --accent-rgb:184,134,11;
   --font-body:'Inter',-apple-system,'Segoe UI',Arial,sans-serif; --font-mono:'JetBrains Mono',monospace;
+  /* Serif display face, for the app's own "editorial" voice (the sign-out hero, auth screen
+     titles) -- kept deliberately separate from --font-body, which stays the only face used for
+     interactive UI chrome (buttons, inputs, nav, modals). Fraunces was already loaded above for
+     one cover-letter style variant (.cl-paper.cl-modern .cl-name) -- this is the first time it
+     carries the app's own identity rather than a single resume-export option. */
+  --font-display:'Fraunces',serif;
   --radius:10px; --radius-sm:6px;
+  /* Shared minimum height for every single-line field control (text/number/password/email
+     inputs, selects, the tag chip-input) -- a real, reported inconsistency: these previously
+     each derived their own height from padding/font-size in isolation, close enough most of the
+     time but visibly mismatched wherever two different control types sit in the same row
+     (e.g. a bullet's chip-input next to its own textarea, or a select next to a text input).
+     One token, applied everywhere via min-height (not height, so a control with more content --
+     a chip-input with several tags wrapped onto a second line -- can still grow). */
+  --field-h:36px;
   --paper:#FFFFFF; /* resume preview -- fixed white always, never theme-dependent, on screen and exported */
   --red:#d9705a; --red-bg:rgba(217,112,90,0.12);
   --green:#7fae7a; --green-bg:rgba(127,174,122,0.12);
@@ -27,6 +41,14 @@
 }
 
 *{box-sizing:border-box;}
+/* A real gap, not previously covered: every text input/select/textarea strips its native
+   outline (outline:none, below) and replaces it only with a border-color change on :focus --
+   fine for a mouse click, not a strong enough signal for keyboard-only navigation, and buttons/
+   links/nav tabs had no themed replacement at all (just whatever the browser's own default
+   happens to be, inconsistent with the rest of this app's styling). One themed ring, applied via
+   :focus-visible specifically (not plain :focus) so it only appears for keyboard/programmatic
+   focus, not on every mouse click -- the same distinction modern browsers themselves draw. */
+:is(button,.btn,a,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 /* App shell: the outer page itself never scrolls -- only specific inner regions do
    (.view as a fallback for simple single-column views; .ed-panel/.stage independently
    for the two-panel Editor/Cover-Letter layout). This replaces an earlier approach that
@@ -43,7 +65,59 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);f
 .topbar{flex:none;}
 #ghPanelWrap,#conflictBannerWrap{flex:none;}
 .view{display:none;flex:1 1 auto;min-height:0;overflow-y:auto;padding:20px 26px 60px;}
-.view.active{display:block;}
+/* A real, reported gap: switching views was a hard, instant display:none/block cut with zero
+   transition -- every nav/tab click just snapped, no visual continuity at all, part of why
+   navigation "felt off" even though it was technically fast. animation (not transition --
+   display isn't animatable, but an element already at display:block when its animation starts
+   plays normally) fires every time .active gets (re)applied, including switchView() removing
+   it from every view and re-adding it to the target -- even clicking the tab you're already on
+   re-triggers it, which reads as a deliberate "refreshed" pulse rather than a bug. opacity+
+   transform only (not width/height/etc) -- compositor-only properties, never triggers layout,
+   matching this app's own care elsewhere about not re-triggering reflow. outline:none here is
+   deliberate too: .view itself is a programmatic focus target (see focusActiveView(), js/
+   06_app.js) for screen-reader/keyboard users, not a visible focus ring's target -- the ring
+   this app already draws via :focus-visible (see this file's own top-of-file comment on it)
+   would otherwise draw a ring around the entire view's outer edge, which looks like a bug, not
+   a real focus indicator; keyboard focus is still perfectly real to assistive tech even with no
+   visible ring around this specific container. */
+.view.active{display:block;animation:view-fade-in 200ms ease;outline:none;}
+@keyframes view-fade-in{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+@media (prefers-reduced-motion: reduce){
+  .view.active{animation:none;}
+}
+/* UI/UX audit finding -- Library tab content (#libPanels) reuses this same keyframe; see
+   renderLibrary()'s own comment in js/06_app.js for why a class add/remove is needed here
+   (unlike .view.active, this element never toggles display, so the animation has to be
+   re-triggered explicitly rather than replaying "for free" off a display:none->block change). */
+.lib-panel-fade{animation:view-fade-in 150ms ease;}
+@media (prefers-reduced-motion: reduce){
+  .lib-panel-fade{animation:none;}
+}
+/* Generic small loading spinner -- reusable anywhere a brief async wait needs visible feedback
+   (see onDashboardCardClick()'s "edit" action, js/06_app.js, the first thing to use it: opening
+   a version does a real network round-trip before the editor appears, previously with zero
+   visual feedback at all -- a real, reported "did my click even register?" moment). Deliberately
+   a new, separate keyframe from .pdf-fallback-spinner's own -- that one already has its own ok/
+   fail terminal states tightly coupled to the PDF-fallback dialog specifically; duplicating a
+   few lines here is lower-risk than reaching into an already-shipped, unrelated feature. */
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion: reduce){
+  .spinner{animation-duration:1.6s;}
+}
+/* Real network time (fetching the Supabase client from a CDN, then checking the session, then
+   loading account data -- see index.html's own preconnect/modulepreload comment) leaves a
+   window, before init() (js/06_app.js) has run at all, where #viewAuth is real DOM but has no
+   content yet -- a genuinely blank screen, reported directly ("we can't do anything about the
+   delay, so at least add a loading animation to it"). This is static HTML baked directly into
+   #viewAuth below (index.html), not something JS adds -- it has to render before any script has
+   even started fetching, which is the entire point. It needs no JS to remove itself either:
+   whatever runs first once boot finishes -- renderAuthScreen() (signed out), switchView()
+   moving .active off viewAuth entirely (signed in), or handleBootFailure() -- either overwrites
+   this element's innerHTML or hides the element outright, so this placeholder is superseded
+   automatically in every real outcome, with no separate cleanup call needed anywhere. */
+.boot-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;height:60vh;color:var(--text-faint);font-size:13px;}
+.spinner-lg{width:30px;height:30px;border-width:3px;}
 a{color:var(--accent-light);}
 button{font-family:inherit;}
 svg{display:block;}
@@ -53,11 +127,25 @@ svg{display:block;}
    without wrapping; don't add more always-visible controls here without checking it still
    fits at a normal window width, or move the new one into that dropdown too. */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:1px solid var(--border);gap:16px;flex-wrap:nowrap;}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;}
-.brand .mark{width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 32% 28%,var(--accent-light),var(--accent) 60%,var(--accent-dark) 100%);flex:none;}
+.brand{display:flex;align-items:center;gap:10px;}
+/* The full icon+wordmark lockup (assets/draftshelf-logo*.png), on request, for visual
+   consistency with the same lockup now used in README.md's own theme-adaptive header --
+   replaces the earlier icon-image + live-text pattern. Two stacked <img> elements, toggled
+   by [data-theme] rather than swapped via JS, so the correct variant is already showing at
+   first paint (index.html's inline pre-paint bootstrap script sets data-theme before any CSS
+   renders -- see its own comment) with no flash and no dependency on 06_app.js having run yet. */
+.brand-logo{height:26px;width:auto;flex:none;object-fit:contain;}
+.brand-logo-dark{display:none;}
+:root[data-theme="dark"] .brand-logo-light{display:none;}
+:root[data-theme="dark"] .brand-logo-dark{display:block;}
 .nav{display:flex;gap:6px;flex-wrap:nowrap;flex-shrink:0;}
-.nav button{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;transition:border-color 0.15s,color 0.15s;}
+.nav button{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;transition:border-color 0.15s,color 0.15s,background-color 0.15s;}
 .nav button.active{border-color:var(--accent);color:var(--accent-light);background:linear-gradient(180deg,rgba(var(--accent-rgb),0.16),rgba(var(--accent-rgb),0.05));}
+/* Dashboard/Library/Cover Letter tabs had a transition list watching border-color/color but
+   no :hover rule ever actually changed them -- the same "dead transition" class of gap the
+   UI audit flagged for .theme-toggle's own transform. Scoped to :not(.active) so the
+   already-distinct active-tab treatment above isn't fought or dulled by a hover state. */
+.nav button:not(.active):hover{border-color:var(--border-hover);color:var(--text);background-color:var(--surface-hover);}
 /* Set visually apart from the 4 fixed nav tabs (extra left margin, a leading return-arrow
    glyph) rather than sitting flush against them -- it's a contextual "you left something
    open" pointer, not a 5th permanent destination, and reads as one more tab in the same row
@@ -97,12 +185,22 @@ svg{display:block;}
    from the gear button's real getBoundingClientRect() at open time (position:fixed can't use
    a positioned ancestor as its containing block the way absolute did, so this can't be pure
    CSS anymore) -- top/right here are just a fallback in case that ever fails to run. */
-.settings-dropdown{position:fixed;top:60px;left:calc(100% - 266px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px;width:240px;z-index:9999;}
+/* UI/UX audit finding: this dropdown snapped open with a hard display:none->block cut, no
+   transition -- the exact gap .view.active's own fade-in (view-fade-in, below) already solved
+   for top-level navigation, never extended here. Reuses that same @keyframes directly (no new
+   one declared) -- the JS side needs no changes at all, since switching this element's inline
+   style from display:none to display:block already re-triggers a declared CSS animation, the
+   identical mechanism .view.active relies on. CSS-only deliberately, not GSAP: a plain fade at
+   this size/duration looks and performs identically either way, so adding the library here
+   would be dependency weight with no genuine improvement over what's already free. */
+.settings-dropdown{position:fixed;top:60px;left:calc(100% - 266px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px;width:240px;z-index:9999;animation:view-fade-in 150ms ease;transform-origin:top right;}
+@media (prefers-reduced-motion: reduce){
+  .settings-dropdown{animation:none;}
+}
 .settings-dropdown-item{display:block;width:100%;text-align:left;background:transparent;border:none;color:var(--text);font-size:13px;font-weight:600;padding:8px 6px;border-radius:var(--radius-sm);cursor:pointer;}
 .settings-dropdown-item:hover{background:var(--surface-hover);}
 .settings-divider{height:1px;background:var(--border);margin:8px 0;}
 .settings-gh-status{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-faint);padding:0 6px;}
-.guest-notice p{font-size:12px;color:var(--text-muted);margin:6px 0 10px;line-height:1.5;}
 
 /* Mobile/tablet nav -- a real, reported regression: .topbar's strict flex-wrap:nowrap (see
    its own comment above) was verified against normal desktop window widths, but never
@@ -117,7 +215,12 @@ svg{display:block;}
    both otherwise hidden entirely above this breakpoint. */
 #btnMobileMenu{display:none;}
 @media (max-width:900px){
-  #btnMobileMenu{display:inline-flex !important;}
+  /* .topbar.is-authed gates this -- a real, reported gap: the hamburger used to show
+     unconditionally below this breakpoint regardless of sign-in state, but it only ever does
+     anything useful for #topbarAuthedControls, which doesn't apply while signed out (the
+     click handler itself already no-ops there too, see init() -- this is the matching visual
+     fix, an inert-looking hamburger sitting next to real signed-out controls read as broken). */
+  .topbar.is-authed #btnMobileMenu{display:inline-flex !important;}
   /* !important because #topbarAuthedControls's own display is also driven by an inline
      style (js/06_app.js's loadAuthedAppState()/showSignedOutState() toggle it between 'flex'
      and 'none' purely based on sign-in state) -- inline styles otherwise always beat a
@@ -129,18 +232,101 @@ svg{display:block;}
     display:flex !important;
     position:fixed; top:57px; left:0; right:0;
     flex-direction:column; align-items:stretch;
+    /* !important: index.html's inline style sets justify-content:space-between for the desktop
+       single-row layout (nav group vs. status group pushed to opposite ends). Left alone here,
+       that same space-between now applies to a column layout instead, pinning the status group
+       (save status/theme/Export/Import/Settings/Sign out) all the way to the bottom of the new
+       full-height panel and leaving a large dead gap in between -- a real, found-in-testing
+       side effect of the height:calc(100vh - 57px) fix directly above. flex-start keeps every
+       item grouped compactly at the top instead. */
+    justify-content:flex-start !important;
     background:var(--surface); border-bottom:1px solid var(--border); box-shadow:var(--shadow);
     padding:14px 16px; gap:12px;
-    max-height:calc(100vh - 57px); overflow-y:auto;
+    /* height, not max-height -- a real, found-in-testing bug: with max-height the panel only
+       ever grew to fit its own (short) content, leaving a gap below it where Dashboard/Library
+       content underneath stayed fully visible AND clickable, undimmed, while the menu was open
+       (no real backdrop/scrim). Forcing the panel to always fill the remaining viewport height
+       makes it a genuine opaque sheet that blocks interaction with whatever's behind it, the
+       same way a scrim would -- overflow-y:auto still handles the rare case the content itself
+       is taller than the viewport. */
+    height:calc(100vh - 57px); overflow-y:auto;
     z-index:9999;
   }
-  /* Same components as desktop, just allowed to wrap onto multiple rows now that they're in
-     a vertical scrollable panel instead of forced into the topbar's single line. */
-  .nav,.gh-status{flex-wrap:wrap;}
+  /* Deliberately arranged, not just "allowed to wrap" -- an earlier version of this rule only
+     added flex-wrap and left every child (nav tabs, save-status text, theme toggle, Export/
+     Import JSON, the settings gear, Sign out) to fall wherever the wrap algorithm happened to
+     break the row, which packed a jumble of differently-sized items across two uneven rows with
+     no visual grouping. Reported back directly as "I don't like the arrangement of the menu."
+     Fixed with real structure: nav links become a stacked, full-width, tap-friendly list (the
+     primary destinations, first); a divider; then the secondary controls grouped by what they
+     are -- status text alone on its own line, the two icon-only toggles + the two JSON buttons
+     together on one row (all four together fit this panel's width comfortably), and Sign out
+     last, alone, full-width, so leaving the app is a deliberate, isolated tap. */
+  #topbarAuthedControls.mobile-open .nav{
+    flex-direction:column; align-items:stretch; gap:6px; width:100%;
+  }
+  #topbarAuthedControls.mobile-open .nav button{
+    width:100%; text-align:left; padding:12px 14px !important; font-size:14px;
+  }
   .nav-resume-btn{margin-left:0;}
+  #topbarAuthedControls.mobile-open .gh-status{
+    flex-direction:row; flex-wrap:wrap; align-items:center; gap:10px; width:100%;
+    border-top:1px solid var(--border); margin-top:6px; padding-top:14px;
+  }
+  #topbarAuthedControls.mobile-open #saveStatusText{ flex:1 1 100%; order:1; }
+  #topbarAuthedControls.mobile-open #btnThemeToggle{ order:2; }
+  #topbarAuthedControls.mobile-open .settings-menu-wrap{ order:3; }
+  /* #btnExportJson used to live here too (a direct .gh-status child, order:4) -- it moved
+     into #settingsDropdown ("Export Shelf", between Preferences and Change password), which
+     is already mobile-safe on its own (same fixed-position dropdown as desktop, opened via
+     the settings gear this row already carries), so it needs no order rule of its own here. */
+  #topbarAuthedControls.mobile-open #btnImportResume{ order:4; flex:1 1 auto; }
+  #topbarAuthedControls.mobile-open #btnSignOut{ order:5; flex:1 1 100%; margin-top:4px; }
+
+  /* ===== Touch targets -- found via a real-viewport audit (375px/768px), not guessed. Every
+     rule below only widens an existing element's hit area (padding/min-size), it never changes
+     which elements exist or how desktop renders them (all scoped to this same ≤900px block).
+     !important throughout -- this block sits earlier in the file (grouped with the rest of the
+     mobile/tablet nav rules above) than several of the base selectors it's overriding
+     (.card-actions button, .tag-chip, .btn-icon, etc. are all defined further down), so without
+     it the base rule would win the cascade on source order alone despite equal specificity --
+     confirmed this was actually happening on a real measurement before adding !important here. */
+
+  /* .theme-toggle is the shared base class for the theme toggle, the settings gear, AND the
+     hamburger button itself (30x30 on desktop) -- bumping it once here covers all three. */
+  .theme-toggle{width:40px !important;height:40px !important;}
+
+  /* Dashboard card actions (Edit/Duplicate/Pin/Delete) measured at an 18x18 hit box with ~28px
+     between centers on a real 375px screenshot -- a real mis-tap risk, Delete sitting that
+     close to the others. */
+  .card-actions{gap:10px !important;}
+  .card-actions button{padding:10px !important;}
+
+  /* Tag chip "x" (tag-chip-input, used for every bullet/skill-category tag) measured at 15x13px
+     -- too small to reliably hit; widened along with the chip's own padding so the target grows
+     without the chip looking oversized relative to its own text. */
+  .tag-chip{padding:5px 7px 5px 10px !important;}
+  .tag-chip-remove{padding:5px 6px !important;font-size:15px !important;}
+
+  /* Section reorder chevrons (move-btns, used in the editor's per-section <summary> and the
+     Library tab's entry reordering) measured with an 11px icon inside 1-3px of padding --
+     effectively a ~15px target. */
+  .move-btns button{padding:7px 6px !important;}
+
+  /* Remove-entry / remove-bullet icon buttons (.btn-icon, e.g. the Library tab's per-entry "x"
+     and per-bullet "x") measured at 30x22px. */
+  .btn-icon{padding:9px 10px !important;}
+
+  /* Preview zoom controls (-/Fit/+) measured at 26x26px. */
+  .zoom-controls button{width:36px !important;height:36px !important;}
 }
 
-.theme-toggle{background:transparent;border:1px solid var(--border);color:var(--text-muted);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none;transition:border-color 0.15s,color 0.15s,transform 0.2s;}
+/* transform was in this rule's own transition list but nothing ever changed it -- dead CSS,
+   found in the UI/UX audit. Now that flipThemeToggleIcon() (js/06_app.js) drives transform
+   directly via GSAP for the two real theme-toggle buttons, listing it here too would fight
+   that -- the CSS transition engine would try to interpolate the same property GSAP is
+   already animating frame-by-frame, a real source of visual stutter, not just redundant. */
+.theme-toggle{background:transparent;border:1px solid var(--border);color:var(--text-muted);width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none;transition:border-color 0.15s,color 0.15s;}
 .theme-toggle:hover{border-color:var(--accent);color:var(--accent-light);}
 .theme-toggle svg{width:15px;height:15px;}
 
@@ -150,6 +336,7 @@ svg{display:block;}
 .btn-brass{background:linear-gradient(180deg,var(--accent-light),var(--accent));color:#241a0c;border:none;}
 .btn-danger{background:transparent;color:var(--red);border:1px solid var(--red);}
 .btn-sm{padding:5px 10px;font-size:11px;border-radius:5px;}
+.btn-xs{padding:2px 8px;font-size:10px;border-radius:4px;}
 .btn:disabled{opacity:.4;cursor:not-allowed;}
 .btn svg{width:14px;height:14px;flex:none;}
 
@@ -157,7 +344,27 @@ select,input[type=text],input[type=number],input[type=password],input[type=email
 select:focus,input:focus,textarea:focus{border-color:var(--accent);}
 textarea{resize:vertical;line-height:1.5;width:100%;}
 input[type=text],input[type=number],input[type=password],input[type=email]{width:100%;}
+/* A real, reported gap: input[type=number]/[type=text]/etc. above get width:100% globally, but
+   a <select> never did -- inside any .field (used for basically every labeled input/select
+   pairing app-wide, e.g. stylePanelHtml()'s "Bullet marker"/"Heading align"/"Page size" etc.
+   sitting next to number inputs in the same row), a select shrank to its own text content's
+   natural width instead of matching its sibling inputs, visibly smaller/misaligned. Scoped to
+   .field specifically (not a bare `select{width:100%}`) so standalone selects elsewhere that
+   were never wrapped in .field -- e.g. the dashboard's #sortSelect -- keep their current,
+   unrelated sizing untouched. */
+.field select{width:100%;}
+select,input[type=text],input[type=number],input[type=password],input[type=email]{min-height:var(--field-h);}
 label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;}
+/* A bordered, "card" variant of .chk for a single standout option (currently just the GitHub
+   Backup connect flow's "Create a new repository for me" toggle) -- the plain .chk look (a
+   bare native checkbox + small muted text) reads fine for a routine settings checkbox among
+   many, but disappeared next to a whole flow's worth of surrounding copy. Bigger accent-colored
+   checkbox, a real border, and a highlighted state when checked so it reads as a deliberate,
+   distinct choice rather than an afterthought. */
+label.chk-card{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);font-size:13px;font-weight:600;color:var(--text);transition:border-color 0.15s,background 0.15s;}
+label.chk-card:hover{border-color:var(--border-hover);background:var(--surface-hover);}
+label.chk-card input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--accent);cursor:pointer;}
+label.chk-card:has(input:checked){border-color:var(--accent);background:linear-gradient(180deg,rgba(var(--accent-rgb),0.14),rgba(var(--accent-rgb),0.05));}
 .field{margin-bottom:8px;}
 .field label{display:block;font-size:10.5px;color:var(--text-muted);margin-bottom:3px;}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
@@ -177,11 +384,41 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
 .stat .l{font-size:11px;color:var(--text-muted);}
 .toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+/* UI/UX audit finding: no .card:hover rule existed at all -- the version cards (the
+   single most-clicked element on the most-visited screen) sat completely flat and static.
+   box-shadow here, transform (the actual "lift") handled by GSAP instead -- see
+   versionCards' delegated mouseover/mouseout listeners in js/06_app.js -- box-shadow doesn't
+   meaningfully benefit from GSAP's easing over a plain CSS transition, no reason to hand that
+   half to JS too. border-color/box-shadow only (not transform) -- compositor/paint-only,
+   avoids fighting the GSAP-driven transform on the same element. */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;transition:border-color 0.2s ease,box-shadow 0.2s ease;}
+.card:not(.new):hover{border-color:var(--border-hover);box-shadow:var(--shadow);}
+/* Pinned dashboard card -- a visible accent, not just the badge, since pinning now actually
+   reorders the list (renderDashboard()) rather than being a cosmetic-only label. */
+.card.pinned{border-color:var(--accent);}
 .card.new{border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;min-height:120px;}
-.card.new:hover{border-color:var(--accent);color:var(--accent-light);}
+.card.new:not(.empty):hover{border-color:var(--accent);color:var(--accent-light);}
+/* First-run guidance, folded directly into the "+ New version" tile itself -- a separate
+   floating block above the grid (an earlier version of this) was reported as looking wrong:
+   isolated centered text with a lot of dead space around it, disconnected from the actual
+   "do something" affordance sitting right below it. This is the same dashed tile, just
+   richer content and taller, so it reads as one cohesive call to action instead of two
+   disconnected pieces. Spans the full grid row so it doesn't get cramped into one
+   220px-minmax column like a normal card. */
+.card.new.empty{grid-column:1/-1;flex-direction:column;gap:4px;min-height:200px;padding:32px 20px;text-align:center;}
+.card.new.empty .new-card-icon{color:var(--accent-light);margin-bottom:4px;}
+.card.new.empty .new-card-icon svg{width:30px;height:30px;}
+.card.new.empty h3{font-size:15px;color:var(--text);margin:0;font-weight:700;}
+.card.new.empty p{font-size:13px;color:var(--text-muted);max-width:420px;margin:0 0 8px;line-height:1.5;}
+.card.new.empty .new-card-cta{display:inline-block;padding:8px 20px;border:1px solid var(--border);border-radius:var(--radius-sm);font-weight:600;font-size:13px;color:var(--text-muted);transition:border-color 0.15s,color 0.15s;}
+.card.new.empty:hover{border-color:var(--accent);}
+.card.new.empty:hover .new-card-cta{border-color:var(--accent);color:var(--accent-light);}
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:5px;background:var(--surface-hover);color:var(--accent-light);margin-bottom:8px;}
 .badge svg{width:10px;height:10px;}
+/* Dashboard card badge for a standalone (imported, Library-untouching) version -- an outlined
+   variant of .badge rather than a new solid color, so it reads as "informational" next to
+   .pinned's own solid accent look, not as another priority signal competing with it. */
+.badge.standalone-badge{background:transparent;border:1px solid var(--border);color:var(--text-muted);}
 .card h3{margin:0 0 3px;font-size:14.5px;}
 .card p{margin:0 0 8px;font-size:11.5px;color:var(--text-muted);}
 .card-actions{display:flex;gap:10px;border-top:1px solid var(--border);padding-top:8px;}
@@ -190,20 +427,108 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
 .card-actions button:hover{color:var(--accent-light);}
 
 /* library */
-.lib-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+/* Sticky, on request ("all the tabs, exp, projects, etc, they should always stay, should not
+   scroll") -- #libTabs is a direct child of #viewLibrary, which is the actual scrolling
+   element (.view's own overflow-y:auto), so position:sticky against it needs no wrapper.
+   A real, reported follow-up bug: sticking it at top:0 left .view's own top/side padding
+   (20px/26px) as a gap ABOVE the bar that wasn't covered by anything -- card content
+   scrolling up showed through it, reading as "a gap between the topbar and the tabs that
+   doesn't look good." First fixed with the standard sticky-header-in-a-padded-container
+   trick (negative-margin the bar out to the container's own edges) -- reported as still
+   broken, and live-measured (getBoundingClientRect()) to actually be broken: a
+   position:sticky element's "top:0" stuck offset is computed from its own normal-flow
+   position, and a *negative* top margin on a sticky element doesn't fold into that
+   computation the way it does for ordinary layout -- the bar still stuck exactly
+   `.view`'s padding-top (20px) below the real scroll-container edge, leaving that whole
+   strip as dead, see-through space regardless of the margin trick. Fixed properly instead
+   by removing the padding this bar needs to plug from `.view` itself, on `#viewLibrary`
+   specifically (ID selector beats `.view`'s class selector regardless of source order or
+   the mobile media query below, so this holds at every width) -- there is then no padding
+   strip left for any margin trick to fight with; `.lib-tabs` just keeps its own top
+   padding for internal breathing room. z-index keeps it above card content; the bottom
+   border gives it a visible edge against whatever scrolls underneath once the panel is
+   taller than the viewport. */
+#viewLibrary{padding-top:0;}
+.lib-tabs{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;z-index:5;background:var(--bg);margin:0 -26px 14px;padding:16px 26px 10px;border-bottom:1px solid var(--border);}
 .lib-tabs button{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:6px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:12px;}
 .lib-tabs button.active{border-color:var(--accent);color:var(--accent-light);}
+@media (max-width:599px){
+  /* .view's own mobile rule (below) drops its side padding to 16px -- .lib-tabs's
+     horizontal negative-margin/padding pair (still -26px/26px above) needs to match that
+     at this width too, or its background strip over/undershoots the real edge. */
+  .lib-tabs{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;}
+}
 .lib-panel{display:none;}
+/* Multi-column card grids, on request ("skills... and tags are only one column so it's like
+   a long list") -- each card (.entry/.ed-block) already sizes itself to its own content, not
+   the full row, so a single-column stack wasted most of a normal desktop view's width. Every
+   child here is already a self-contained card, so grid+gap is enough with no per-card change
+   needed. Collapses to one column below the same 900px breakpoint this file's other
+   mobile-responsive rules already use. No align-items override -- CSS Grid's own default
+   (stretch) is what makes same-row cards match height instead of each shrinking to its own
+   content ("some skills height don't match" -- a real, reported gap from an earlier explicit
+   align-items:start override, removed here). */
+.lib-grid{display:grid;gap:12px;}
+.lib-grid-2{grid-template-columns:repeat(2,1fr);}
+.lib-grid-3{grid-template-columns:repeat(3,1fr);}
+@media (max-width:900px){
+  .lib-grid-2,.lib-grid-3{grid-template-columns:1fr;}
+}
 .lib-panel.active{display:block;}
 .entry{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px;background:var(--surface);}
 .entry-top{display:flex;justify-content:flex-end;gap:4px;margin-bottom:6px;}
 .btn-icon{padding:4px 8px;}
 .btn-icon svg{width:12px;height:12px;}
 .bullet-row{display:flex;gap:6px;align-items:flex-start;margin-bottom:6px;}
-.bullet-row textarea{flex:1;min-height:38px;}
-.tag-input{font-size:11px;width:120px;}
+/* A real, reported inconsistency: the bullet textarea (2 rows tall by design -- see its
+   rows="2" attribute in bulletRowHtml()) and its tag chip-input sat at visibly different
+   heights, the chip-input pinned to the single-line --field-h baseline every other field uses.
+   That baseline is correct for a chip-input next to a single-line field (Skills tab), but wrong
+   here specifically -- 56px matches a real 2-row textarea's rendered height (2 lines at this
+   font/line-height + padding + border), so both elements in this one row share a deliberate,
+   row-specific height instead of one looking randomly shorter than the other. */
+.bullet-row-main{flex:1;min-width:0;display:flex;flex-direction:column;}
+.bullet-row textarea{min-height:56px;}
+.bullet-row .tag-chip-input{min-height:56px;}
 .metric-flag{font-size:10px;color:var(--accent-light);border:1px solid var(--accent);border-radius:5px;padding:2px 5px;white-space:nowrap;}
 .metric-ok{font-size:10px;color:var(--green);white-space:nowrap;}
+/* "Used in N versions" -- js/06_app.js's usageLabelHtml()/buildUsageIndex(). One shared,
+   static line per entry (not repeated per field); bullets and Skill Sets get their own,
+   since their usage count is independently meaningful at that granularity. */
+.usage-label{font-size:10.5px;color:var(--text-faint);white-space:nowrap;}
+.entry-usage-line{margin:-2px 0 8px;}
+/* Empty until a field goes dirty, then filled with a small Save button (renderFieldSaveSlot(),
+   js/06_app.js) -- via direct DOM manipulation, never a re-render, so typing never loses its
+   own cursor position. Sits right under the bullet textarea in its own row (gap for the
+   usage label beside it); for every other field it's simply appended right after the input,
+   so it wraps onto its own line naturally without needing per-field layout of its own. */
+.field-save-row{display:flex;align-items:center;gap:8px;min-height:18px;margin-top:3px;}
+.field-save-slot:empty{display:none;}
+.field-save-slot .btn{animation:view-fade-in 150ms ease;}
+@media (prefers-reduced-motion: reduce){
+  .field-save-slot .btn{animation:none;}
+}
+.bullet-tags{display:inline-flex;gap:4px;margin-left:2px;}
+.bullet-tag-badge{font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;padding:2px 5px;white-space:nowrap;}
+/* GitHub/Notion-style chip input -- the single tag-picker UI used everywhere a tag is applied
+   (see tagChipInputHtml() in js/06_app.js). Chips + a trailing text field inside one bordered
+   box, sized with the same --field-h/padding baseline every other field uses (see the shared
+   field rule above) so it lines up cleanly next to a Company/Role input or a bullet textarea
+   instead of looking visibly shorter -- a real, reported inconsistency. The suggestion list
+   below is position:fixed, real pixel top/left set by positionFloatingPanel() at open time --
+   the same fix the Settings dropdown needed (see that section's own comment): position:absolute
+   relative to the chip input gets clipped/misplaced by the Library panel's own overflow:auto
+   scrolling ancestor, especially near the panel's bottom or right edge. */
+.tag-chip-input{display:flex;flex-wrap:wrap;align-items:center;gap:4px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;min-height:var(--field-h);min-width:160px;max-width:320px;background:var(--surface);}
+.tag-chip-input:focus-within{border-color:var(--accent);}
+.tag-chip{display:inline-flex;align-items:center;gap:3px;background:var(--surface-hover);border:1px solid var(--border);border-radius:10px;padding:2px 4px 2px 8px;font-size:11px;color:var(--text);white-space:nowrap;}
+.tag-chip-remove{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;line-height:1;padding:0 3px;}
+.tag-chip-remove:hover{color:var(--text);}
+.tag-chip-text{border:none;outline:none;background:transparent;font-size:12.5px;flex:1 1 60px;min-width:60px;height:20px;color:var(--text);}
+.tag-chip-suggestions{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);z-index:9999;max-height:180px;overflow-y:auto;min-width:160px;}
+.tag-chip-suggestion{display:block;width:100%;text-align:left;padding:6px 8px;font-size:12px;background:none;border:none;cursor:pointer;color:var(--text);}
+.tag-chip-suggestion:hover{background:var(--surface-hover);}
+.skillgroups-section{margin-top:20px;padding-top:14px;border-top:1px solid var(--border);}
 
 /* editor layout -- both columns stretch to the full height .editor-layout has available
    (itself 100% of .view, which is 100% of "viewport minus however tall the topbar actually
@@ -220,7 +545,23 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
   scroll internally instead of growing taller than the row. */
 @media (max-width:1050px){.editor-layout{grid-template-columns:1fr;height:auto;}}
 .ed-panel{overflow-y:auto;padding-right:4px;}
+/* Preferences (renderPreferences(), js/06_app.js) -- full-width, two-column layout instead of a
+   single capped-width vertical column. See renderPreferences()'s own comment for the two prior
+   attempts this replaced (a single row of three unequal-height cards, first with a ragged
+   bottom edge, then -- once stretched to fix that -- with mostly-empty stretched boxes instead).
+   This version puts Default style (by far the most fields) in its own column, and stacks
+   References mode/Default section order/Import review defaults in the other -- align-items:start
+   on the outer grid means neither column is forced to match the other's height, so nothing here
+   ever fakes a height it doesn't have real content for. The second column's own children are a
+   plain vertical stack (a flex column, not a grid cell) so they keep a consistent gap between
+   them; Default style is a direct grid child on its own; grid doesn't require sibling cells to
+   share a tag or wrapper. Collapses to one column below 900px, same breakpoint this file's other
+   mobile rules already use. */
+.prefs-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+.prefs-columns > div{display:flex;flex-direction:column;gap:16px;}
+@media (max-width:900px){.prefs-columns{grid-template-columns:1fr;}}
 .ed-block{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;background:var(--surface);}
+.import-review-actions{position:sticky;bottom:0;background:var(--bg);padding:12px 0;display:flex;gap:8px;border-top:1px solid var(--border);margin-top:16px;}
 /* flex-start (not space-between) + margin-left:auto on the ::after expand indicator --
    space-between with a variable number of real children (label, and optionally a move-btns
    group) distributed them at 0%/50%/100% of the row, which floated the reorder arrows in
@@ -228,16 +569,75 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
    auto margin on ::after always consumes the remaining space itself, so move-btns (when
    present) sits immediately after the label and the indicator is always pushed to the far
    right, regardless of whether move-btns exists for that particular section. */
-.ed-block summary{cursor:pointer;font-weight:700;font-size:13px;list-style:none;display:flex;align-items:center;gap:8px;}
+/* A real, reported gap ("Default style and Font family does not have enough gap between
+   them... lot of places in the site") -- summary had no margin-bottom at all, so whatever
+   rendered right after it (the panel's first field/row/checkbox) sat flush against the heading
+   text with zero breathing room. .ed-block is the one shared component behind every collapsible
+   panel in the app -- Preferences' Default style/Default section order/Import review defaults,
+   and every editor section (Experience, Projects, Education, Skills, References, every custom
+   section, the editor's own Style panel) -- so this single rule fixes the gap everywhere it
+   appears at once, not just the one place it was first noticed. */
+.ed-block summary{cursor:pointer;font-weight:700;font-size:13px;list-style:none;display:flex;align-items:center;gap:8px;margin-bottom:10px;}
 .ed-block summary::-webkit-details-marker{display:none;}
 .ed-block summary::after{content:'+';color:var(--accent-light);margin-left:auto;}
 .ed-block[open] summary::after{content:'\2013';}
-.sel-item{border-bottom:1px solid var(--border);padding:8px 0;}
+/* Redesigned on direct request ("when i click edit, it occupies fully, and the done button
+   is placed awfully... redesign the whole skill set thing"). The card stays in its own
+   .lib-grid-2 column at all times now -- open or closed -- rather than spanning both columns
+   once opened; spanning was what stranded the "Done" button far from the title on a suddenly
+   much wider row. Categories in the revealed checklist stack in one column instead of their
+   own inner 2-up grid, since a single card-width column (roughly 450-500px on a normal
+   desktop) is already comfortable room for a checkbox + Label + Items side by side -- no
+   need for a second grid nested inside the first. */
+.skillgroup-cat-list{display:flex;flex-direction:column;gap:8px;}
+/* Checkbox + read-only content -- select-only, on request ("I only want to be able to
+   select the skills (but see the content), not edit them there"). The category's own card
+   further up this same Skills tab is still the one place to actually edit label/text/tags. */
+.skillgroup-cat-row{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;background:var(--surface);cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+.skillgroup-cat-row:hover{border-color:var(--border-hover);}
+.skillgroup-cat-row:has(input:checked){border-color:var(--accent);background:linear-gradient(180deg,rgba(var(--accent-rgb),0.10),rgba(var(--accent-rgb),0.03));}
+.skillgroup-cat-row input[type=checkbox]{margin-top:2px;flex-shrink:0;cursor:pointer;}
+.skillgroup-cat-row-content{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.skillgroup-cat-row-label{font-weight:600;font-size:13px;color:var(--text);}
+.skillgroup-cat-row-items{font-size:12px;color:var(--text-muted);}
+.sel-item{border-bottom:1px solid var(--border);padding:8px 0;transition:background 0.15s;}
 .sel-item:last-child{border-bottom:none;}
 .sel-head{display:flex;align-items:center;gap:8px;}
 .sel-head label{flex:1;font-size:12.5px;cursor:pointer;}
 .sel-bullets{margin:6px 0 0 24px;}
+/* A skill category's own item list, on its own line below the label -- same indent
+   .sel-bullets uses, on request ("it looks clumsy with the category label and the items
+   just in the same line"). */
+.sel-skill-items{margin:4px 0 4px 24px;font-size:12px;color:var(--text-muted);}
+.sel-item > .bullet-tags{display:inline-flex;gap:6px;margin:0 0 4px 24px;}
 .sel-bullet{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-muted);padding:2px 0;}
+/* Variant A ("compact") for the dense entry/bullet checklists -- a bigger accent-colored
+   checkbox and a subtle highlight when checked, keeping the existing compact row height
+   (unlike .chk-card's full bordered box, which would make a long list of entries/bullets much
+   taller). NOT the shipped default (see Variant B below, on by default via #edPanel's own
+   "sel-cards" class in index.html) -- kept fully intact, on request, specifically so switching
+   back is "remove one class in index.html", never rewriting CSS from scratch. */
+.sel-head input[type=checkbox]{width:16px;height:16px;flex:none;accent-color:var(--accent);cursor:pointer;}
+.sel-item:has(.sel-head input:checked){background:linear-gradient(90deg,rgba(var(--accent-rgb),0.09),transparent 55%);}
+.sel-bullet input[type=checkbox]{width:14px;height:14px;flex:none;accent-color:var(--accent);cursor:pointer;}
+.sel-bullet{border-radius:4px;padding:2px 4px;transition:background 0.15s;}
+.sel-bullet:hover{background:var(--surface-hover);}
+
+/* Variant B ("full cards") for the same two lists -- the shipped default, chosen on request
+   ("Default to option B") over Variant A above. Gated behind #edPanel.sel-cards (set directly
+   in index.html, not toggled by any in-app UI) rather than folded into the base .sel-item/
+   .sel-bullet rules, specifically so Variant A stays byte-for-byte available if this default
+   ever changes back -- "have both, in case I change my mind in the future" was an explicit
+   request, not just an implementation convenience. Turns each entry (and each bullet within
+   it) into a bordered card matching .chk-card's look elsewhere in the app. */
+#edPanel.sel-cards .sel-item{border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;background:var(--surface);}
+#edPanel.sel-cards .sel-item:last-child{margin-bottom:0;}
+#edPanel.sel-cards .sel-item:has(.sel-head input:checked){border-color:var(--accent);background:linear-gradient(180deg,rgba(var(--accent-rgb),0.13),rgba(var(--accent-rgb),0.04));}
+#edPanel.sel-cards .sel-head input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:var(--accent);cursor:pointer;}
+#edPanel.sel-cards .sel-bullets{margin:8px 0 0;display:flex;flex-direction:column;gap:6px;}
+#edPanel.sel-cards .sel-bullet{border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--bg);}
+#edPanel.sel-cards .sel-bullet input[type=checkbox]{width:14px;height:14px;flex:none;accent-color:var(--accent);cursor:pointer;}
+#edPanel.sel-cards .sel-bullet.on{border-color:rgba(var(--accent-rgb),0.5);background:rgba(var(--accent-rgb),0.07);}
 /* Entry-edit modal (js/06_app.js's openEntryEditModal()/renderEntryEditModal()) -- a full
    dialog rather than the small nested <details> disclosure this replaced (that was reported
    as too cramped for comfortable field editing). Reuses .gh-modal-header/.gh-modal-close/
@@ -249,6 +649,11 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
 .edit-scope-choice{margin-top:16px;padding-top:12px;border-top:1px solid var(--border);}
 .edit-scope-choice .chk{display:block;margin-top:4px;}
 .edit-scope-choice .chk:has(input:disabled){color:var(--text-faint);cursor:default;}
+/* .chk-card's own display:flex needs to win over the plain-.chk display:block rule right
+   above -- same selector specificity otherwise (two classes each), so this re-states it
+   explicitly rather than relying on source order. */
+.edit-scope-choice .chk-card{display:flex;margin-top:0;}
+.edit-scope-choice .chk-card:has(input:disabled){color:var(--text-faint);cursor:default;border-color:var(--border);background:var(--surface);}
 .sel-bullet.on{color:var(--text);}
 .move-btns{display:flex;gap:2px;}
 .move-btns button{background:transparent;border:none;color:var(--text-faint);cursor:pointer;padding:1px 3px;display:inline-flex;}
@@ -256,11 +661,17 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
 .move-btns button svg{width:11px;height:11px;}
 .section-heading-field{margin-bottom:10px;}
 .style-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.bold-toggles{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-top:6px;}
-.jd-result{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;}
-.kw{font-size:10.5px;padding:2px 8px;border-radius:10px;}
-.kw.match{background:var(--green-bg);color:var(--green);border:1px solid var(--green);}
-.kw.miss{background:var(--red-bg);color:var(--red);border:1px solid var(--red);}
+.bold-toggles{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:6px;}
+.bold-toggles .chk-card{padding:8px 10px;font-size:12.5px;}
+/* stylePanelHtml()'s compact:true modifier (Preferences' Default style block only -- the
+   editor's own Style panel never passes compact, so .style-grid/.bold-toggles alone are
+   unaffected) regroups every field into its own explicit field-row3/field-row4 rows (see that
+   function's own comment for the exact grouping, requested field-by-field) instead of flowing
+   through a generic grid -- each row divides evenly (3 or 4 fields exactly filling a 3- or
+   4-column row), so unlike an earlier version of this layout there's no incomplete trailing
+   row/empty cell to work around here anymore. Bold fields uses the plain 2-column .bold-toggles
+   grid above, same as the editor's own Style panel -- an earlier version widened it to 3
+   columns here specifically, reverted on a direct follow-up request back to 2. */
 
 /* preview / paper -- always white, independent of app theme (see --paper).
    .stage stretches to fill .editor-layout's full height (see above) and scrolls
@@ -322,20 +733,141 @@ label.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tex
 .gh-status-sub{font-size:11.5px;color:var(--text-muted);}
 .gh-section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-faint);margin:18px 0 8px;}
 .gh-section-label:first-of-type{margin-top:0;}
+/* Trash panel -- reuses .gh-modal-overlay/.gh-modal-box's own chrome (same look as the GitHub
+   Backup dialog), just a different row shape inside .gh-modal-body. */
+.trash-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.trash-row:last-child{border-bottom:none;}
+.trash-row-name{font-size:13px;font-weight:600;color:var(--text);}
+.trash-row-meta{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+.trash-row-actions{display:flex;gap:8px;flex:none;}
 .gh-steps{margin:0 0 4px;padding:0;list-style:none;counter-reset:gh-step;}
 .gh-steps li{counter-increment:gh-step;position:relative;padding-left:30px;margin-bottom:10px;font-size:12.5px;color:var(--text-muted);line-height:1.5;}
 .gh-steps li::before{content:counter(gh-step);position:absolute;left:0;top:0;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
 .gh-error-box{background:var(--red-bg);border:1px solid rgba(217,112,90,0.3);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--red);margin-top:14px;}
+/* "Import as separate version" -- always-visible reminder that this version's content is a
+   private, embedded copy, never the shared Library (see currentLibrary() in js/06_app.js). */
+.standalone-banner{background:var(--surface-hover);border:1px solid var(--accent);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:12px;}
 .gh-actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--border);flex:none;}
 
-.auth-box{max-width:360px;margin:80px auto;padding:28px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);}
-.auth-box h2{margin:0 0 16px;font-size:18px;color:var(--text);}
+/* Library impact dialog -- "This affects N other versions" (showLibraryImpactDialog(),
+   js/06_app.js). Reuses .gh-modal-overlay/.gh-modal-box's own chrome, same look as the
+   GitHub Backup and Trash dialogs. */
+.impact-version-list{list-style:none;margin:0 0 4px;padding:0;max-height:160px;overflow-y:auto;}
+.impact-version-list li{font-size:13px;color:var(--text);padding:6px 0;border-bottom:1px solid var(--border);}
+.impact-version-list li:last-child{border-bottom:none;}
+.impact-per-version-link{display:inline-block;margin-top:10px;background:none;border:none;padding:0;font-size:12px;color:var(--accent-light);cursor:pointer;text-decoration:underline;}
+.impact-per-version-link:hover{color:var(--accent);}
+.impact-per-version-list{max-height:280px;overflow-y:auto;}
+.impact-version-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.impact-version-row:last-child{border-bottom:none;}
+.impact-version-name{font-size:13px;color:var(--text);font-weight:600;}
+.impact-version-choice{display:flex;gap:14px;flex:none;}
+.impact-version-choice label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer;white-space:nowrap;}
+
+/* A real, full-width homepage for a signed-out visitor -- not decoration, a requirement:
+   Google's OAuth branding verification rejected the app for showing *only* a bare login form
+   with no description of the app. This went through a much larger scrollable, personal-photo,
+   multi-section redesign earlier in the same session and back out again, on direct request
+   ("remove my image and msg, remove the scrollable and revert to the two column layout...
+   but with no ai pattern") -- see authLandingHtml() (js/06_app.js) for that history. Back to
+   a single, non-scrolling, two-column fold: copy + CTAs on the left, a real demonstration of
+   the Library -> Version mechanic on the right (a small "library" of tagged bullets next to
+   the resume page they produce) -- that demo, not an eyebrow pill or a generic icon list, is
+   what keeps this from reading as a templated AI hero despite being a plain two-column
+   layout. */
+.auth-landing{width:100%;max-width:1080px;margin:48px auto 40px;padding:0 32px;display:grid;grid-template-columns:1.15fr 1fr;gap:56px;align-items:center;}
+/* --font-display (Fraunces) carries the app's own "editorial" identity here -- the one
+   deliberate exception to --font-body being the only typeface used everywhere else. See the
+   --font-display definition at the top of this file for the full reasoning. */
+.auth-landing-copy h1{font-family:var(--font-display);font-weight:600;font-size:42px;line-height:1.15;margin:0 0 16px;color:var(--text);letter-spacing:-0.01em;}
+.auth-hero-nowrap{white-space:nowrap;}
+.auth-hero-subhead{font-size:15px;line-height:1.65;color:var(--text-muted);margin:0 0 28px;max-width:480px;}
+.auth-hero-ctas{display:flex;gap:12px;}
+.auth-cta-primary,.auth-cta-secondary{padding:12px 22px;font-size:14px;}
+
+/* The demo itself: a "library" card (4 tagged bullets -- the same 2 achievements written
+   once per role, 2 marked included for the one job being tailored for) connected by a
+   downward arrow to a small serif "page" card showing exactly those included lines -- the
+   actual mechanic, shown rather than described. Stacked vertically (library above, page
+   below), not side by side. */
+.auth-hero-demo{display:flex;flex-direction:column;align-items:stretch;gap:10px;}
+.hero-demo-shelf{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px;}
+.hero-demo-shelf-company{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.hero-demo-job-badge{font-size:10px;font-weight:600;color:var(--accent-light);background:var(--surface-hover);border:1px solid var(--border);border-radius:20px;padding:3px 9px;white-space:nowrap;}
+.hero-demo-bullet{display:flex;align-items:center;gap:7px;font-size:12px;line-height:1.4;color:var(--text-faint);padding:4px 0;}
+.hero-demo-bullet.on{color:var(--text);}
+.hero-demo-dot{flex:none;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--border-hover);}
+.hero-demo-bullet.on .hero-demo-dot{background:var(--accent);border-color:var(--accent);}
+.hero-demo-bullet .bullet-tag-badge{margin-left:auto;flex:none;}
+.hero-demo-arrow{align-self:center;font-size:20px;color:var(--accent-light);}
+/* The page preview -- top-aligned (a resume is a top-anchored document, not centered
+   content), with a real name+contact header and company/role line matching this app's own
+   actual print output (buildHeaderNode() in js/06_app.js) instead of a bare name floating
+   alone. Just the header block is centered -- the body/company/bullets below stay
+   left-aligned, matching how most real resume templates only center the top name/contact
+   block. */
+.hero-demo-page{background:#FFFFFF;border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:18px 16px;font-family:'Times New Roman',Times,serif;color:#000;text-align:left;}
+.hero-demo-page-header{text-align:center;margin-bottom:10px;}
+.hero-demo-page-name{font-weight:700;font-size:15px;margin-bottom:2px;}
+.hero-demo-page-contact{font-size:9.5px;color:#444;}
+.hero-demo-page-heading{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.03em;border-bottom:1px solid #000;padding-bottom:2px;margin-bottom:6px;}
+.hero-demo-page-company{font-weight:700;font-size:11px;margin-bottom:3px;}
+.hero-demo-page-line{font-size:11px;line-height:1.6;}
+/* Fills the space above the sticky footer and centers the hero content vertically inside it. */
+.auth-hero-wrap{width:100%;flex:1;display:flex;align-items:center;justify-content:center;}
+@media (max-width:900px){
+  .auth-landing{grid-template-columns:1fr;gap:32px;margin:28px auto;padding:0 20px;}
+  .auth-landing-copy h1{font-size:30px;}
+  .auth-hero-subhead{max-width:none;}
+}
+/* Small "<- Back" link on every form screen reached from the homepage (renderAuthScreen(),
+   js/06_app.js) -- not shown in 'reset' mode, arrived at only via a real recovery email, where
+   there's no sensible "back" target. */
+.auth-back-link{display:inline-block;margin-bottom:10px;font-size:12px;color:var(--text-muted);}
+.auth-back-link:hover{color:var(--accent-light);}
+.auth-box{width:100%;max-width:580px;margin:32px auto 80px;padding:36px 40px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-sizing:border-box;}
+.auth-box h2{font-family:var(--font-display);font-weight:600;margin:0 0 16px;font-size:21px;color:var(--text);}
 .auth-box .field{margin-bottom:12px;}
 .auth-box input{width:100%;box-sizing:border-box;}
 .auth-links{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:12px;}
+/* Sign-in screen layout, per a hand-drawn spec: label + "Forgot password?" sharing one row
+   (instead of the link stacked below as a fourth item in .auth-links), the primary button
+   full-width, a single centered alternate-sign-in link right under it, then a divider
+   separating "logging into an existing account" from "creating one" -- see
+   authFieldsHtml()/authFooterHtml() in js/06_app.js for the markup this styles. */
+.field-label-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;}
+.field-label-row label{margin-bottom:0;}
+.field-inline-link{font-size:11px;}
+.auth-submit{width:100%;justify-content:center;margin-top:4px;}
+.auth-links-center{align-items:center;text-align:center;}
+.auth-divider{border-top:1px solid var(--border);margin:18px 0 14px;}
+/* Social sign-in row (per a hand-drawn spec) -- flex + justify-content:space-between so the
+   two buttons together span exactly the same width as the Email input below them, rather than
+   sizing to their own text and leaving uneven gaps at the row's edges. */
+.auth-social-row{display:flex;justify-content:space-between;gap:10px;margin-bottom:16px;}
+.auth-social-btn{flex:1;justify-content:center;gap:8px;}
+/* A line-through "or" -- ::before draws the full-width rule, the <span> sits on top with the
+   surface's own background color to visually "cut" a gap in it around the text. */
+.auth-divider-or{position:relative;text-align:center;margin:4px 0 18px;}
+.auth-divider-or::before{content:'';position:absolute;top:50%;left:0;right:0;border-top:1px solid var(--border);}
+.auth-divider-or span{position:relative;background:var(--surface);padding:0 10px;font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em;}
+.auth-footer{display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12.5px;color:var(--text-muted);text-align:center;}
+.auth-footer-secondary{font-size:12px;}
 .auth-message{padding:8px 10px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:14px;}
 .auth-message-error{background:var(--red-bg);color:var(--red);border:1px solid var(--red);}
 .auth-message-info{background:var(--green-bg);color:var(--green);border:1px solid var(--green);}
+/* .auth-page is the sticky-footer wrapper (renderAuthScreen(), js/06_app.js): a flex column
+   at least as tall as #viewAuth itself, so .auth-legal-links (its last child, margin-top:auto)
+   is pinned to the bottom of the viewport instead of just trailing whatever content happens to
+   sit above it -- a real, reported gap ("their current position feels slightly accidental...
+   floating underneath the hero content rather than behaving like a real footer"). */
+/* align-items:center -- a real, found-in-testing bug: without it, .auth-box (a flex item here)
+   sized to its own narrow content instead of actually growing to fill and get capped by its
+   own max-width, so raising that max-width alone did nothing visible ("they are still narrow").
+   .auth-box's own width:100% (below) is what lets it actually reach that cap once centered. */
+.auth-page{min-height:100%;display:flex;flex-direction:column;align-items:center;}
+.auth-legal-links{margin-top:auto;padding:40px 0 24px;text-align:center;font-size:11px;color:var(--text-faint);}
+.auth-legal-links a{color:var(--text-faint);}
 
 .conflict-banner{margin:0 26px 16px;padding:14px 16px;border-radius:var(--radius);background:var(--red-bg);border:1px solid var(--red);font-size:13px;color:var(--text);}
 @media (max-width:599px){
