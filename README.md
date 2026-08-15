@@ -57,6 +57,8 @@ Because it's a real account with a real database behind it, it also follows you 
 
 ## Architecture
 
+<img src="assets/architecture.png" width="900"/>
+
 `paginate()` is the layout engine: it builds real DOM nodes for every resume block, measures each one's actual rendered height, and bin-packs them into pages so a heading is never orphaned alone at the bottom and an entry is never split mid-way. PDF export reuses those same already-paginated pages, sending the HTML to a server-side headless-Chromium service instead of screenshotting the browser - real vector text in, real vector text out. Every write to Supabase carries an expected revision number; a mismatch means someone else saved first, and surfaces as a conflict banner with three ways to resolve it, instead of silently overwriting a change.
 
 ---
