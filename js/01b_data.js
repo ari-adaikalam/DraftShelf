@@ -1,48 +1,22 @@
-/* ===== DB: the only place app code talks to Supabase tables/RPCs (or, in guest mode, this
-   browser's own localStorage as a stand-in) =====
+/* ===== DB: the only place app code talks to Supabase tables/RPCs =====
    Every write takes an expectedRevision and does the conditional
    `.eq('revision', expectedRevision)` update from the plan's requirement 2 -- zero rows
    affected means someone else (another tab/device) saved first, surfaced as {conflict:true}
    rather than silently overwritten. DB.listVersions() maps column names to the exact
    shape renderDashboard() already consumes, so that function needs zero changes.
 
-   Guest mode (DB.guestMode, toggled by js/06_app.js's enterGuestMode()/exitGuestMode()) --
-   added on request, so someone can try the app without signing up first. Every function
-   below branches at the top: guest mode reads/writes this browser's localStorage instead of
-   Supabase, returning the *exact same shapes* real callers already expect, so nothing else
-   in the app (06_app.js's rendering, the conflict-banner UI, etc.) needs to know or care
-   which mode is active. There's no real conflict risk in guest mode (nothing else writes to
-   this browser's localStorage concurrently in any way this app needs to defend against), but
-   saveLibrary()/saveVersion() still honor expectedRevision and return the same
-   {conflict:true, serverRow} shape on a mismatch, since 06_app.js's own optimistic-
-   concurrency bookkeeping (LIBRARY_REVISION/VERSION_REVISIONS) expects a real revision
-   number back either way -- keeping this consistent means zero special-casing anywhere else.
-   GitHub backup (getGithubConfig/callBackupFunction) and PDF export have no guest
-   equivalent -- both need a real account server-side -- callers check DB.guestMode
-   themselves before offering those (see the settings menu and downloadPdf() in 06_app.js). */
+   Guest mode (a localStorage-only, no-account way to try the app) existed here previously and
+   was removed on request -- signing up is required to use the app now, no exceptions. If it's
+   ever reconsidered, look at git history for enterGuestMode()/exitGuestMode() and this file's
+   own DB.guestMode branches (every function below used to fork at the top between this
+   browser's localStorage and Supabase). */
 var DB = {
-  guestMode: false,
-
-  _guestRead(key, fallback){
-    try{ const raw = localStorage.getItem(key); return raw==null ? fallback : JSON.parse(raw); }
-    catch(e){ return fallback; }
-  },
-  _guestWrite(key, value){
-    try{ localStorage.setItem(key, JSON.stringify(value)); }
-    catch(e){ /* storage full/unavailable -- silently no-op, same tolerance KV already has */ }
-  },
-
   async _userId(){
     const { data: { session } } = await window.supabase.auth.getSession();
     return session ? session.user.id : null;
   },
 
   async getLibrary(){
-    if(DB.guestMode){
-      let row = DB._guestRead('rf:guest:library', null);
-      if(!row){ row = { data: emptyLibrary(), revision: 1 }; DB._guestWrite('rf:guest:library', row); }
-      return { data: row.data, revision: row.revision };
-    }
     const userId = await DB._userId();
     if(!userId) return null;
     const { data, error } = await window.supabase.from('library').select('*').eq('user_id', userId).maybeSingle();
@@ -59,13 +33,6 @@ var DB = {
   },
 
   async saveLibrary(data, expectedRevision){
-    if(DB.guestMode){
-      const row = DB._guestRead('rf:guest:library', { data: emptyLibrary(), revision: 0 });
-      if(row.revision !== expectedRevision) return { ok:false, conflict:true, serverRow: row };
-      const next = { data, revision: expectedRevision+1 };
-      DB._guestWrite('rf:guest:library', next);
-      return { ok:true, revision: next.revision };
-    }
     const userId = await DB._userId();
     if(!userId) return { ok:false, error:'not signed in' };
     const { data: rows, error } = await window.supabase.from('library')
@@ -81,33 +48,56 @@ var DB = {
   },
 
   async listVersions(){
-    if(DB.guestMode){
-      const rows = DB._guestRead('rf:guest:versions', []);
-      return rows.slice().sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at)).map(r=>({
-        id:r.id, name:r.name, main:r.is_main, updatedAt:new Date(r.updated_at).getTime(),
-        company:r.target_company, role:r.target_role, dateApplied:r.date_applied,
-        pageCount:r.page_count, revision:r.revision
-      }));
-    }
     const userId = await DB._userId();
     if(!userId) return [];
     const { data, error } = await window.supabase.from('resume_versions')
-      .select('id,name,target_company,target_role,date_applied,is_main,page_count,revision,updated_at')
-      .eq('user_id', userId)
+      .select('id,name,target_company,target_role,date_applied,is_main,page_count,revision,updated_at,is_standalone')
+      .eq('user_id', userId).is('deleted_at', null)
       .order('updated_at', { ascending:false });
     if(error){ console.error('listVersions failed:', error); return []; }
     return data.map(r=>({
       id:r.id, name:r.name, main:r.is_main, updatedAt:new Date(r.updated_at).getTime(),
       company:r.target_company, role:r.target_role, dateApplied:r.date_applied,
-      pageCount:r.page_count, revision:r.revision
+      pageCount:r.page_count, revision:r.revision, standalone:!!r.is_standalone
     }));
   },
 
+  // The Trash panel's own listing -- the exact inverse filter of listVersions() above, plus
+  // deleted_at itself (for the "deleted 3 days ago" label) and ordered by *that* column, not
+  // updated_at, since "most recently trashed" is what a trash view should surface first.
+  async listTrashedVersions(){
+    const userId = await DB._userId();
+    if(!userId) return [];
+    const { data, error } = await window.supabase.from('resume_versions')
+      .select('id,name,target_company,target_role,date_applied,is_main,page_count,revision,updated_at,is_standalone,deleted_at')
+      .eq('user_id', userId).not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending:false });
+    if(error){ console.error('listTrashedVersions failed:', error); return []; }
+    return data.map(r=>({
+      id:r.id, name:r.name, main:r.is_main, updatedAt:new Date(r.updated_at).getTime(),
+      company:r.target_company, role:r.target_role, dateApplied:r.date_applied,
+      pageCount:r.page_count, revision:r.revision, standalone:!!r.is_standalone,
+      deletedAt:new Date(r.deleted_at).getTime()
+    }));
+  },
+
+  // Powers the Library tab's "used in N versions" warnings (buildUsageIndex(), js/03_model.js)
+  // -- the one place this app needs to know every version's *selection*, not just the
+  // lightweight Dashboard-listing columns listVersions() above selects. One query for every
+  // non-deleted version's full data (a real cost for an account with a lot of versions, but
+  // still one round trip, not N) -- only ever called when the Library tab is opened, never on
+  // every keystroke.
+  async listVersionSelections(){
+    const userId = await DB._userId();
+    if(!userId) return [];
+    const { data, error } = await window.supabase.from('resume_versions')
+      .select('id,name,data')
+      .eq('user_id', userId).is('deleted_at', null);
+    if(error){ console.error('listVersionSelections failed:', error); return []; }
+    return data.map(r=>({ id:r.id, name:r.name, selection: r.data && r.data.selection }));
+  },
+
   async getVersion(id){
-    if(DB.guestMode){
-      const row = DB._guestRead('rf:guest:versions', []).find(r=>r.id===id);
-      return row ? { data: row.data, revision: row.revision } : null;
-    }
     const userId = await DB._userId();
     if(!userId) return null;
     const { data, error } = await window.supabase.from('resume_versions').select('*').eq('id', id).eq('user_id', userId).maybeSingle();
@@ -115,27 +105,19 @@ var DB = {
     return { data: data.data, revision: data.revision };
   },
 
+  // is_standalone is only ever written here, at creation -- unlike is_main/page_count (which
+  // genuinely change over a version's life and so saveVersion() below re-derives them on every
+  // save), a version's standalone-ness is fixed for good the moment it's created
+  // (buildStandaloneVersion() in js/03_model.js is the only place that ever sets
+  // versionObj.standalone=true) and nothing in the app ever flips it either way afterward.
   async createVersion(versionObj){
-    if(DB.guestMode){
-      const rows = DB._guestRead('rf:guest:versions', []);
-      const row = {
-        id: versionObj.id, name: versionObj.name||'New version',
-        target_company: versionObj.jobMeta.company||'', target_role: versionObj.jobMeta.role||'',
-        date_applied: versionObj.jobMeta.dateApplied||'', is_main: !!versionObj.main,
-        page_count: versionObj.pageCount||1, revision: 1, updated_at: new Date().toISOString(),
-        data: versionObj
-      };
-      rows.push(row);
-      DB._guestWrite('rf:guest:versions', rows);
-      return { data: row.data, revision: row.revision };
-    }
     const userId = await DB._userId();
     if(!userId) return null;
     const row = {
       id: versionObj.id, user_id: userId, name: versionObj.name||'New version',
       target_company: versionObj.jobMeta.company||'', target_role: versionObj.jobMeta.role||'',
       date_applied: versionObj.jobMeta.dateApplied||'', is_main: !!versionObj.main,
-      page_count: versionObj.pageCount||1, data: versionObj
+      page_count: versionObj.pageCount||1, is_standalone: !!versionObj.standalone, data: versionObj
     };
     const { data, error } = await window.supabase.from('resume_versions').insert(row).select().single();
     if(error){ console.error('createVersion failed:', error); return null; }
@@ -143,21 +125,6 @@ var DB = {
   },
 
   async saveVersion(id, data, expectedRevision){
-    if(DB.guestMode){
-      const rows = DB._guestRead('rf:guest:versions', []);
-      const idx = rows.findIndex(r=>r.id===id);
-      if(idx<0) return { ok:false, error:'version not found' };
-      if(rows[idx].revision !== expectedRevision) return { ok:false, conflict:true, serverRow: rows[idx] };
-      const updated = {
-        ...rows[idx], data, revision: expectedRevision+1, updated_at: new Date().toISOString(),
-        name: data.name||'New version', target_company: data.jobMeta.company||'',
-        target_role: data.jobMeta.role||'', date_applied: data.jobMeta.dateApplied||'',
-        is_main: !!data.main, page_count: data.pageCount||1
-      };
-      rows[idx] = updated;
-      DB._guestWrite('rf:guest:versions', rows);
-      return { ok:true, revision: updated.revision };
-    }
     const userId = await DB._userId();
     if(!userId) return { ok:false, error:'not signed in' };
     const { data: rows, error } = await window.supabase.from('resume_versions')
@@ -177,11 +144,29 @@ var DB = {
     return { ok:true, revision: rows[0].revision };
   },
 
+  // Soft delete, on request ("if i accidentally delete a version, I can't get that back") --
+  // sets deleted_at instead of removing the row, so restoreVersion() below can bring it back.
+  // The function name/call sites (deleteVersionConfirmed(), js/06_app.js) are unchanged; only
+  // the underlying behavior is. See purgeVersion() for the real, irreversible delete.
   async deleteVersion(id){
-    if(DB.guestMode){
-      DB._guestWrite('rf:guest:versions', DB._guestRead('rf:guest:versions', []).filter(r=>r.id!==id));
-      return true;
-    }
+    const userId = await DB._userId();
+    if(!userId) return false;
+    const { error } = await window.supabase.from('resume_versions')
+      .update({ deleted_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId);
+    return !error;
+  },
+
+  async restoreVersion(id){
+    const userId = await DB._userId();
+    if(!userId) return false;
+    const { error } = await window.supabase.from('resume_versions')
+      .update({ deleted_at: null }).eq('id', id).eq('user_id', userId);
+    return !error;
+  },
+
+  // The real, irreversible delete -- only reachable from the Trash panel's own "Delete
+  // forever" action, never from the Dashboard's normal delete flow.
+  async purgeVersion(id){
     const userId = await DB._userId();
     if(!userId) return false;
     const { error } = await window.supabase.from('resume_versions').delete().eq('id', id).eq('user_id', userId);
@@ -189,11 +174,6 @@ var DB = {
   },
 
   async getPreferences(){
-    if(DB.guestMode){
-      let row = DB._guestRead('rf:guest:preferences', null);
-      if(!row){ row = { default_page_size:'A4', default_references_mode:'full' }; DB._guestWrite('rf:guest:preferences', row); }
-      return row;
-    }
     const userId = await DB._userId();
     if(!userId) return null;
     const { data, error } = await window.supabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle();
@@ -207,10 +187,6 @@ var DB = {
   },
 
   async savePreferences(fields){
-    if(DB.guestMode){
-      DB._guestWrite('rf:guest:preferences', { ...DB._guestRead('rf:guest:preferences', {}), ...fields });
-      return { ok:true };
-    }
     const userId = await DB._userId();
     if(!userId) return { ok:false };
     const { error } = await window.supabase.from('user_preferences')
@@ -219,7 +195,6 @@ var DB = {
   },
 
   async getGithubConfig(){
-    if(DB.guestMode) return null; // no guest equivalent -- GitHub backup always needs a real account
     const userId = await DB._userId();
     if(!userId) return null;
     const { data, error } = await window.supabase.from('github_config').select('*').eq('user_id', userId).maybeSingle();
@@ -228,7 +203,6 @@ var DB = {
   },
 
   async callBackupFunction(action, args){
-    if(DB.guestMode) return { ok:false, error:'Sign up for a free account to enable GitHub backup.' };
     const { data: { session } } = await window.supabase.auth.getSession();
     if(!session) return { ok:false, error:'not signed in' };
     try{
@@ -240,6 +214,37 @@ var DB = {
       return await res.json();
     }catch(e){
       return { ok:false, error:'Network error contacting backup function' };
+    }
+  },
+
+  // Write-only client error monitoring (see supabase/migrations/20260810090000_client_errors.sql
+  // for the table/RLS this writes into, and installClientErrorMonitoring() in js/06_app.js for
+  // what actually captures errors and calls this). Deliberately doesn't go through DB._userId()
+  // the way every other method here does -- an error can happen before sign-in (e.g. the CDN-load
+  // failure handleBootFailure() exists for), and DB._userId() itself calls
+  // window.supabase.auth.getSession(), which can throw if window.supabase never finished loading
+  // in the first place. Reads the session directly and tolerates it failing -- a failure to log
+  // an error should never itself throw and mask the original error.
+  async logClientError(errorData){
+    try{
+      let userId = null;
+      try{
+        const { data:{ session } } = await window.supabase.auth.getSession();
+        userId = session ? session.user.id : null;
+      }catch(e){ /* window.supabase not ready yet -- log with no user_id rather than give up */ }
+      await window.supabase.from('client_errors').insert({
+        user_id: userId,
+        message: errorData.message,
+        stack: errorData.stack || null,
+        view: errorData.view || null,
+        url: errorData.url || null,
+        user_agent: errorData.userAgent || null,
+      });
+    }catch(e){
+      // Never let a failure to log an error surface as a second error -- console.error only,
+      // same as every other best-effort/fire-and-forget call in this app (warmPdfServices(),
+      // etc).
+      console.error('logClientError failed:', e);
     }
   }
 };
