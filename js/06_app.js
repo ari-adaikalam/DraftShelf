@@ -2805,11 +2805,10 @@ function entryCardHtml(kind, e, i, isOpen){
   // justify-content:space-between when the label is present, so the remove button stays
   // pinned to the right either way) keeps every card's field block starting at the exact
   // same offset regardless of usage count.
-  // Skills is the one exception, on request ("bring the used in versions below the tag, for
-  // skills") -- rendered below the Tags field instead (see the kind==='skills' branch), not
-  // in this shared top row.
-  const usageInTopRow = kind==='skills' ? '' : usageLine;
-  const rm = `<div class="entry-top"${usageInTopRow?' style="justify-content:space-between;"':''}>${usageInTopRow}<button class="btn btn-danger btn-icon" data-action="remove-entry" data-kind="${kind}" data-id="${esc(e.id)}">${ICONS.close}</button></div>`;
+  // Never repeated here -- the collapsed summary row (collapsibleEntryCardHtml()) already
+  // shows this badge for every kind, visible without opening the card at all; showing it a
+  // second time down here once the card is open was a real, reported duplicate.
+  const rm = `<div class="entry-top"><button class="btn btn-danger btn-icon" data-action="remove-entry" data-kind="${kind}" data-id="${esc(e.id)}">${ICONS.close}</button></div>`;
   if(kind==='experience'){
     // Collapsible, default collapsed, on request -- the collapsed summary shows the
     // identifying "Company - Role" text plus the usage badge (both requested explicitly),
@@ -2861,12 +2860,10 @@ function entryCardHtml(kind, e, i, isOpen){
     return collapsibleEntryCardHtml('education:'+e.id, summaryLabel, usageLine, '', body, isOpen);
   }
   if(kind==='skills'){
-    const usageBlock = usageLine ? `<div class="entry-usage-line">${usageLine}</div>` : '';
     const body = `<div class="entry">${rm}
       <div class="field"><label>Category label</label><input type="text" data-path="skills.${i}.label" value="${esc(e.label)}">${fieldSaveSlotHtml(`skills.${i}.label`)}</div>
       <div class="field"><label>Items</label><input type="text" data-path="skills.${i}.text" value="${esc(e.text)}">${fieldSaveSlotHtml(`skills.${i}.text`)}</div>
       <div class="field"><label>Tags</label>${tagChipInputHtml('library', `skills.${i}.tags`, e.tags)}</div>
-      ${usageBlock}
     </div>`;
     // Collapsed summary shows the category label plus its own tag badges, on request ("Label
     // with tag") -- reuses bulletTagBadgesHtml(), the same tag-badge component every other
@@ -2983,7 +2980,6 @@ function skillGroupCardHtml(sg, i, isOpen){
   // separate, lesser-checked path.
   const usage = skillGroupUsageVersions(sg.id);
   const usageLine = usageLabelHtml(usage);
-  const usageBlock = usageLine ? `<div class="entry-usage-line">${usageLine}</div>` : '';
   const n = sg.categoryIds.length;
   // Collapsible via the same generic +/- chevron every other card here uses now, on request
   // ("remove that edit this set and make it collapsable like the others") -- the earlier
@@ -2993,7 +2989,6 @@ function skillGroupCardHtml(sg, i, isOpen){
   const summaryLabel = `${esc(sg.label||'(untitled set)')} <span style="font-weight:400;color:var(--text-muted);">(${n} ${n===1?'category':'categories'})</span>`;
   const body = `<div class="entry">
       <div class="entry-top"><button class="btn btn-danger btn-icon" data-action="remove-entry" data-kind="skillGroups" data-id="${esc(sg.id)}">${ICONS.close}</button></div>
-      ${usageBlock}
       <div class="field"><label>Set name</label><input type="text" data-path="skillGroups.${i}.label" value="${esc(sg.label)}"></div>
       <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Categories in this set</div>
       ${catRows}
