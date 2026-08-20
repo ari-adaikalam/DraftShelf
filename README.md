@@ -62,6 +62,8 @@ Because it's a real account with a real database behind it, it also follows you 
 
 ## Architecture
 
+<img src="assets/architecture.png" width="900"/>
+
 `paginate()` is the layout engine: it builds real DOM nodes for every resume block, measures each one's actual rendered height, and bin-packs them into pages so a heading is never orphaned alone at the bottom and an entry is never split mid-way. PDF export reuses those same already-paginated pages, sending the HTML to a server-side headless-Chromium service instead of screenshotting the browser - real vector text in, real vector text out. Every write to Supabase carries an expected revision number; a mismatch means someone else saved first, and surfaces as a conflict banner with three ways to resolve it, instead of silently overwriting a change.
 
 The MCP integration is a thin layer over the same code the web app itself runs, not a separate implementation: an AI-driven edit goes through the identical pure reducers the browser's own editor calls, so it carries the same guarantees - valid generated ids, the same dangling-reference tolerance, the same revision-conflict handling - as one made by hand. PDF export over MCP works the same way for a different reason: measuring real page layout needs a real browser, so it drives an actual signed-in session through the live app with headless Chromium rather than trying to re-render a resume's layout from scratch. The connector endpoint and its OAuth server share one clean domain, so real clients can discover and register with it automatically - no manually pasted client ID or secret required on either side.
