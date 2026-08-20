@@ -217,6 +217,76 @@ var DB = {
     }
   },
 
+  // ===== Personal API keys (MCP integration) — see
+  // docs/superpowers/plans/2026-08-19-mcp-ai-integration.md's own Task 2. The raw key is
+  // generated and hashed entirely client-side (crypto.getRandomValues + SHA-256) before ever
+  // leaving the browser — only the hash is ever sent to Supabase, so even a compromised network
+  // log between browser and Supabase never exposes the raw key. This is the one and only place
+  // the raw key is ever available; the Settings panel that calls this must show it exactly once
+  // and never persist it anywhere itself.
+  async generateApiKey(label){
+    const userId = await DB._userId();
+    if(!userId) return { ok:false, error:'not signed in' };
+    const raw = 'dsk_' + Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map(b => b.toString(16).padStart(2,'0')).join('');
+    const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    const hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    // id generated client-side (uid(), js/01_core.js) rather than left to the database's own
+    // default -- same established convention DB.createVersion() already follows, for the same
+    // reason: the value is needed back immediately (to return via {ok:true, id}) without
+    // depending on a round-trip echoing a server-generated default correctly.
+    const id = uid();
+    const { data, error } = await window.supabase.from('api_keys')
+      .insert({ id, user_id: userId, key_hash: hash, label: label || 'MCP key' })
+      .select().single();
+    if(error) return { ok:false, error: error.message };
+    return { ok:true, rawKey: raw, id: data.id };
+  },
+
+  async listApiKeys(){
+    const userId = await DB._userId();
+    if(!userId) return { ok:false, error:'not signed in' };
+    const { data, error } = await window.supabase.from('api_keys')
+      .select('id,label,created_at,last_used_at')
+      .eq('user_id', userId).is('revoked_at', null).order('created_at', { ascending:false });
+    if(error) return { ok:false, error: error.message };
+    return { ok:true, keys: data.map(r => ({ id:r.id, label:r.label, createdAt:r.created_at, lastUsedAt:r.last_used_at })) };
+  },
+
+  async revokeApiKey(id){
+    const userId = await DB._userId();
+    if(!userId) return { ok:false, error:'not signed in' };
+    const { error } = await window.supabase.from('api_keys')
+      .update({ revoked_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId);
+    return error ? { ok:false, error: error.message } : { ok:true };
+  },
+
+  // ===== Connected Apps (remote MCP / OAuth) -- claude.ai/ChatGPT connectors, see Task 15 of
+  // the same plan. Mirrors listApiKeys/revokeApiKey exactly (same row shape, same revoke-not-
+  // delete posture -- oauth_tokens has no DELETE RLS policy at all, same least-privilege reasoning
+  // api_keys already has) -- the two lists sit side by side in the Settings UI because they're
+  // both "ways an AI can act on your account." There's no generateConnectedApp() counterpart:
+  // a row here only ever exists because someone completed a real OAuth consent flow from
+  // claude.ai/ChatGPT itself (mcp-remote-auth's own /authorize+/token), never something created
+  // from inside DraftShelf directly.
+  async listConnectedApps(){
+    const userId = await DB._userId();
+    if(!userId) return { ok:false, error:'not signed in' };
+    const { data, error } = await window.supabase.from('oauth_tokens')
+      .select('id,label,created_at,last_used_at,access_token_expires_at')
+      .eq('user_id', userId).is('revoked_at', null).order('created_at', { ascending:false });
+    if(error) return { ok:false, error: error.message };
+    return { ok:true, apps: data.map(r => ({ id:r.id, label:r.label, createdAt:r.created_at, lastUsedAt:r.last_used_at, accessTokenExpiresAt:r.access_token_expires_at })) };
+  },
+
+  async revokeConnectedApp(id){
+    const userId = await DB._userId();
+    if(!userId) return { ok:false, error:'not signed in' };
+    const { error } = await window.supabase.from('oauth_tokens')
+      .update({ revoked_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId);
+    return error ? { ok:false, error: error.message } : { ok:true };
+  },
+
   // Write-only client error monitoring (see supabase/migrations/20260810090000_client_errors.sql
   // for the table/RLS this writes into, and installClientErrorMonitoring() in js/06_app.js for
   // what actually captures errors and calls this). Deliberately doesn't go through DB._userId()

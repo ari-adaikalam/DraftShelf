@@ -12,7 +12,9 @@
 <meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
-<link rel="icon" type="image/png" href="assets/draftshelf-icon.png">
+<link rel="icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="/draftshelf/assets/draftshelf-icon.png?v=2">
 <style>
   :root{
     --bg:#FBF9F5; --surface:#FFFFFF; --text:#1a1712; --text-muted:#6b6455;
@@ -39,7 +41,7 @@
 <div class="wrap">
   <div class="brand"><img src="assets/draftshelf-logo.png" alt="DraftShelf"></div>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: August 8, 2026</p>
+  <p class="updated">Last updated: August 20, 2026</p>
 
   <h2>Who operates DraftShelf</h2>
   <p>DraftShelf is an independently operated resume-building tool, not a company. Any question about
@@ -62,6 +64,11 @@
     It's encrypted at rest (via Supabase Vault) and only ever decrypted server-side to push a backup
     copy of your data to a GitHub repository you choose. It's never exposed back to your browser or any
     other client after you first enter it.</li>
+    <li><strong>AI assistant connections (optional)</strong> — if you connect an AI assistant (Claude
+    Code, Codex, Claude Desktop, claude.ai, or ChatGPT) from Settings &rarr; Connected Apps, we store a
+    hashed, non-recoverable credential for that connection, which app it is, and when it was last used —
+    never your password or any other secret. See "AI Assistant Access" below for what this lets an
+    assistant do.</li>
   </ul>
   <p>We do not use third-party analytics or advertising trackers of any kind, and we do not sell or
   rent your information to anyone.</p>
@@ -85,6 +92,25 @@
     you configure. That connection, and everything pushed to it, is entirely under your control.</li>
     <li><strong>Google / GitHub / LinkedIn</strong> — only if you choose to sign in using one of these
     instead of a password. We receive only the basic profile info those providers share for sign-in.</li>
+    <li><strong>Claude Code, Codex, Claude Desktop, claude.ai, or ChatGPT</strong> — only if you
+    connect one of these as an AI assistant. See "AI Assistant Access" below.</li>
+  </ul>
+
+  <h2>AI Assistant Access</h2>
+  <p>DraftShelf can optionally be connected to an AI assistant (Claude Code, Codex, Claude Desktop,
+  claude.ai, or ChatGPT) so it can read and edit your Library and Versions in conversation, on your
+  behalf. This is entirely opt-in — nothing is connected unless you explicitly authorize it.</p>
+  <ul>
+    <li>An assistant can only do what you approve when you click "Allow": read and write your resume
+    Library and versions. It can never see or change your password, and it can never set up or read
+    your GitHub Backup token — those stay web-app-only, by design.</li>
+    <li>Every action an assistant takes goes through the same access-controlled path and revision
+    checks a normal browser edit does — an assistant can never read or write another account's data.</li>
+    <li>The credential behind a connection is short-lived and renews automatically only while the
+    connection is actively used; it is never stored anywhere in a form that could be read back as the
+    original secret.</li>
+    <li>You can review every connected assistant and revoke access immediately, at any time, from
+    Settings &rarr; Connected Apps.</li>
   </ul>
 
   <h2>Cookies and local storage</h2>
@@ -103,8 +129,9 @@
   <h2>Security</h2>
   <p>Passwords are hashed by our authentication provider, never stored in plain text. Any stored
   third-party access token (like a GitHub PAT) is encrypted at rest and only decrypted server-side, on
-  demand. All traffic to and from the app is encrypted (HTTPS). Database access is scoped so that each
-  account can only ever read or write its own data.</p>
+  demand. AI assistant connection credentials are hashed the same way passwords are — never stored in
+  a recoverable form. All traffic to and from the app is encrypted (HTTPS). Database access is scoped
+  so that each account can only ever read or write its own data.</p>
 
   <h2>Changes to this policy</h2>
   <p>If this policy changes, we'll update the date at the top of this page.</p>

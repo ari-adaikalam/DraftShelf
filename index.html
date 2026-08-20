@@ -32,7 +32,7 @@
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DraftShelf</title>
-<meta name="description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes -- free, no exceptions.">
+<meta name="description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes - free, no exceptions.">
 <!-- Open Graph / Twitter Card -- what WhatsApp/iMessage/Slack/etc. actually read when this
      link is shared. Without these, a scraper falls back to whatever it can find (the bare
      favicon, stretched to fill a link-preview card, and no description at all) -- exactly
@@ -40,17 +40,19 @@
      URLs (a relative path resolves against the scraper's own origin, not this site's). -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DraftShelf">
-<meta property="og:title" content="DraftShelf -- Tailor the content. DraftShelf handles the rest.">
-<meta property="og:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes -- free, no exceptions.">
+<meta property="og:title" content="DraftShelf - Tailor the content. DraftShelf handles the rest.">
+<meta property="og:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes - free, no exceptions.">
 <meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://ariharasudhan.com/draftshelf/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="DraftShelf -- Tailor the content. DraftShelf handles the rest.">
-<meta name="twitter:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes -- free, no exceptions.">
+<meta name="twitter:title" content="DraftShelf - Tailor the content. DraftShelf handles the rest.">
+<meta name="twitter:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes - free, no exceptions.">
 <meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
-<link rel="icon" type="image/png" href="assets/draftshelf-icon.png">
+<link rel="icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="/draftshelf/assets/draftshelf-icon.png?v=2">
 <!-- Real, reported gap: even after fixing the topbar flash and deferring jsPDF/docx.js, a
      visible ~1s gap remained before the actual landing page/dashboard content appears -- real
      network time, not a rendering issue: the Supabase client has to be fetched from a CDN
@@ -129,6 +131,7 @@
           <button class="settings-dropdown-item" data-view="preferences">Preferences</button>
           <button class="settings-dropdown-item" id="btnExportJson">Export Shelf</button>
           <button class="settings-dropdown-item" id="btnChangePassword">Change password</button>
+          <button class="settings-dropdown-item" id="btnApiKeysOpen">Connected Apps</button>
           <div class="settings-divider"></div>
           <div id="ghSection">
             <div class="settings-gh-status">
@@ -170,6 +173,7 @@
 </div>
 
 <div id="ghPanelWrap"></div>
+<div id="apiKeysPanelWrap"></div>
 <div id="trashPanelWrap"></div>
 <div id="libraryImpactWrap"></div>
 <div id="entryEditModalWrap"></div>

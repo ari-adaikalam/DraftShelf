@@ -121,6 +121,21 @@ function libAddBullet(library, kind, entryId){
 function libRemoveBullet(library, kind, entryId, bulletId){
   return {...library, [kind]: library[kind].map(e=> e.id===entryId ? {...e, bullets:e.bullets.filter(b=>b.id!==bulletId)} : e)};
 }
+// Generic field-level edit reducers -- added for the MCP integration's edit_entry/edit_bullet
+// tools (supabase/functions/mcp-api/tools/entries.ts), which need a dedicated reducer the same
+// way every other mutation here does rather than a bespoke setPath() call. The browser itself
+// still edits fields via setPath() directly on LIBRARY (06_app.js's generic data-path
+// mechanism) -- these aren't wired into that path, just available for it to adopt later if
+// ever useful there too, matching every other reducer in this file being usable from either
+// context.
+function libEditEntry(library, kind, id, fields){
+  return {...library, [kind]: library[kind].map(e => e.id===id ? {...e, ...fields} : e)};
+}
+function libEditBullet(library, kind, entryId, bulletId, fields){
+  return {...library, [kind]: library[kind].map(e => e.id===entryId
+    ? {...e, bullets: e.bullets.map(b => b.id===bulletId ? {...b, ...fields} : b)}
+    : e)};
+}
 
 // Skill Sets -- named bundles of skills categories (LIBRARY.skillGroups), referenced by id
 // from a version's selection.skillGroupId (see resolveVersion() below) rather than toggling
@@ -579,7 +594,7 @@ function moveSectionOrder(version, token, dir){
 
 if(typeof module !== 'undefined') module.exports = {
   emptyLibrary, defaultStyle, normalizeFontFamily, blankVersion, newLibraryEntry, newBullet,
-  libAddEntry, libRemoveEntry, libAddBullet, libRemoveBullet, libToggleSkillGroupCategory,
+  libAddEntry, libRemoveEntry, libAddBullet, libRemoveBullet, libEditEntry, libEditBullet, libToggleSkillGroupCategory,
   libRemoveTagOption, resolveTagLabels, migrateTagOptions,
   versionToggleRef, versionToggleBullet, versionFillByTag, versionRemoveByTag,
   findSummaryByTag, resolveVersion,

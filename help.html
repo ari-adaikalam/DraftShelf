@@ -7,12 +7,14 @@
 <meta name="description" content="Getting started, FAQ, troubleshooting, and a glossary for DraftShelf.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DraftShelf">
-<meta property="og:title" content="Help &amp; FAQ — DraftShelf">
+<meta property="og:title" content="Help &amp; FAQ - DraftShelf">
 <meta property="og:description" content="Getting started, FAQ, troubleshooting, and a glossary for DraftShelf.">
 <meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
-<link rel="icon" type="image/png" href="assets/draftshelf-icon.png">
+<link rel="icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="/draftshelf/assets/draftshelf-icon.png?v=2">
 <style>
   :root{
     --bg:#FBF9F5; --surface:#FFFFFF; --surface-hover:#F5F1E8; --text:#1a1712; --text-muted:#6b6455;
@@ -36,7 +38,7 @@
   .section-sub{font-size:13px;color:var(--text-muted);margin:0 0 20px;}
   section{margin-bottom:44px;}
 
-  /* Getting Started -- numbered steps, each with a real screenshot of the actual app */
+  /* Getting Started - numbered steps, each with a real screenshot of the actual app */
   .steps{counter-reset:step;list-style:none;margin:0;padding:0;}
   .step{counter-increment:step;display:grid;grid-template-columns:34px 1fr;gap:14px;margin-bottom:28px;}
   .step::before{content:counter(step);width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none;}
@@ -44,7 +46,7 @@
   .step p{font-size:13.5px;color:var(--text-muted);margin:0 0 10px;max-width:60ch;}
   .step img{display:block;width:100%;max-width:820px;border:1px solid var(--border);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
 
-  /* FAQ / Troubleshooting -- plain <details> accordions */
+  /* FAQ / Troubleshooting - plain <details> accordions */
   .qa{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface);}
   .qa summary{cursor:pointer;list-style:none;padding:13px 16px;font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:10px;}
   .qa summary::-webkit-details-marker{display:none;}
@@ -68,6 +70,30 @@
   @media (max-width:640px){ .contact-grid{grid-template-columns:1fr;} }
 
   a.back{display:inline-block;margin-top:8px;font-size:13px;color:var(--accent-dark);}
+
+  /* Connect an AI Assistant - a code-block style for config snippets (deliberately not a
+     screenshot of a text editor for these particular steps - a real, copyable code block is
+     more useful and accurate than a picture of one would be), shared by both the numbered
+     .steps list elsewhere on this page and the two-column layout below. */
+  .step pre, .connect-col pre{background:#1a1712;color:#e8e2d5;border-radius:8px;padding:14px 16px;font-size:12.5px;line-height:1.55;overflow-x:auto;margin:0 0 10px;}
+  .step pre code, .connect-col pre code{font-family:ui-monospace,'SF Mono',Menlo,monospace;}
+  .step .tool-tabs, .connect-col .tool-tabs{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+  .step .tool-tabs span, .connect-col .tool-tabs span{font-size:11.5px;font-weight:700;color:var(--accent-dark);background:var(--surface-hover);border-radius:5px;padding:3px 9px;}
+  .step pre{max-width:640px;}
+
+  /* Two cards side by side, one per connection method - align-items:stretch (grid's own
+     default, not overridden) is what makes both card boxes match height regardless of how much
+     content each one actually holds; a shorter card just ends up with blank space at its own
+     bottom rather than the two boxes visually mismatching. */
+  .connect-columns{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;}
+  .connect-col{border:1px solid var(--border);border-radius:10px;padding:22px 24px;background:var(--surface);display:flex;flex-direction:column;}
+  .connect-col h3{font-size:16px;margin:0 0 4px;}
+  .connect-col .connect-col-sub{font-size:12.5px;color:var(--text-muted);margin:0 0 18px;}
+  .connect-col h4{font-size:13.5px;margin:16px 0 4px;}
+  .connect-col h4:first-of-type{margin-top:0;}
+  .connect-col p{font-size:13.5px;color:var(--text-muted);margin:0 0 10px;}
+  .connect-col .connect-note{margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);}
+  @media (max-width:860px){ .connect-columns{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
@@ -80,6 +106,7 @@
 
   <div class="quicknav">
     <a href="#getting-started">Getting started</a>
+    <a href="#ai-assistant">Connect an AI Assistant</a>
     <a href="#faq">FAQ</a>
     <a href="#troubleshooting">Troubleshooting</a>
     <a href="#glossary">Glossary</a>
@@ -88,13 +115,13 @@
 
   <section id="getting-started">
     <h2>Getting started</h2>
-    <p class="section-sub">The four things you'll do on your very first visit -- from a real, signed-in walkthrough.</p>
+    <p class="section-sub">From a real, signed-in walkthrough - everything from your first sign-in to tailoring one resume for two different roles.</p>
     <ol class="steps">
       <li class="step">
         <div>
           <h3>Create an account</h3>
-          <p>Sign up with an email and password, or with Google or GitHub. There's no free trial to
-          track and no guest mode -- every account is fully free, and everything you enter is private to you.</p>
+          <p>Sign up with an email and password, or with Google or GitHub. Every account is fully
+          free, and everything you enter is private to you.</p>
           <img src="assets/help/01-landing.png" alt="The DraftShelf homepage, with Create an account and Sign in buttons">
         </div>
       </li>
@@ -102,17 +129,17 @@
         <div>
           <h3>Land on your Dashboard</h3>
           <p>Every tailored resume you build lives here as its own card. A brand-new account starts
-          empty -- click "+ New version" whenever you're ready for your first one.</p>
+          empty - click "+ New version" whenever you're ready for your first one.</p>
           <img src="assets/help/02-dashboard.png" alt="The DraftShelf dashboard, showing two resume version cards and a New version card">
         </div>
       </li>
       <li class="step">
         <div>
           <h3>Fill in your Library</h3>
-          <p>The Library tab is where every job, project, school, and skill you've ever had lives --
+          <p>The Library tab is where every job, project, school, and skill you've ever had lives -
           add it once here. Each entry can hold several bullet points, and you'll pick which ones to
           use per resume later.</p>
-          <img src="assets/help/03-library.png" alt="The Library tab's Experience panel, with a company, role, and three bullet points">
+          <img src="assets/help/03-library.png" alt="The Library tab's Experience panel, with a company, role, and four tagged bullet points">
         </div>
       </li>
       <li class="step">
@@ -124,7 +151,100 @@
           <img src="assets/help/04-editor.png" alt="The editor view, with a checklist of experience entries on the left and a live resume preview on the right">
         </div>
       </li>
+      <li class="step">
+        <div>
+          <h3>Tailor for a different role in one click</h3>
+          <p>Tag bullets with a role name (e.g. <code>data-analyst</code>, <code>business-analyst</code>)
+          in the Library, then use <strong>Fill in with tag</strong> at the top of any version to pull in
+          everything tagged for that role at once - it only adds or switches content, it never removes
+          anything you've already included, and it asks before making any change.</p>
+          <img src="assets/help/05-tag-fill.png" alt="The Fill in with tag panel, open with a dropdown showing two role tags to pick from">
+        </div>
+      </li>
+      <li class="step">
+        <div>
+          <h3>Edit an entry without leaving the version</h3>
+          <p>Click <strong>Edit details</strong> on any checklist item to open, edit, and add bullets to
+          that Library entry right from the editor. The <strong>Save changes to</strong> choice at the
+          bottom decides how far the edit reaches: update the shared Library everywhere it's used, keep
+          it local to just this one version, or pick per version.</p>
+          <img src="assets/help/06-edit-details.png" alt="The edit-experience modal, showing four bullets and a Save changes to choice between Library, Only this version, and Choose per version">
+        </div>
+      </li>
     </ol>
+  </section>
+
+  <section id="ai-assistant">
+    <h2>Connect an AI Assistant</h2>
+    <p class="section-sub">Let Claude Code, Codex, Claude Desktop, claude.ai, or ChatGPT read and edit your Library and Versions directly, right from the conversation.</p>
+    <div class="connect-columns">
+      <div class="connect-col">
+        <h3>Local: Claude Code, Codex</h3>
+        <p class="connect-col-sub">A coding tool running on your own machine.</p>
+
+        <h4>1. Add it to your AI tool</h4>
+        <div class="tool-tabs"><span>Claude Code</span></div>
+        <pre><code>claude mcp add draftshelf -s user -- npx -y draftshelf-mcp</code></pre>
+        <div class="tool-tabs"><span>Codex CLI</span></div>
+        <pre><code>codex mcp add draftshelf -- npx -y draftshelf-mcp</code></pre>
+        <div class="tool-tabs"><span>Any other local MCP client</span></div>
+        <p>Claude Desktop also supports Connectors directly (see that column) - use this config
+        file instead for any tool with no Connectors option of its own:</p>
+        <pre><code>{
+  "mcpServers": {
+    "draftshelf": {
+      "command": "npx",
+      "args": ["-y", "draftshelf-mcp"]
+    }
+  }
+}</code></pre>
+
+        <h4>2. Restart your AI tool and try it</h4>
+        <p>The first time it actually launches the server, your browser opens on its own to a
+        real DraftShelf sign-in + consent screen - sign in there once, then ask it something like
+        "add a bullet to my most recent experience entry" and reload DraftShelf in your own
+        browser to confirm the change is really there. Every launch after that is instant, no
+        browser involved - if your tool gives up before you finish signing in, finish anyway and
+        just ask it to try again.</p>
+
+        <p class="connect-note">The full setup guide lives on the
+        <a href="https://www.npmjs.com/package/draftshelf-mcp" style="color:var(--accent-dark);">draftshelf-mcp npm package page</a>.</p>
+      </div>
+
+      <div class="connect-col">
+        <h3>Connectors: claude.ai, Claude Desktop, ChatGPT</h3>
+        <p class="connect-col-sub">Add DraftShelf as a connector directly in the chat interface -
+        nothing runs on your own machine.</p>
+
+        <div class="tool-tabs"><span>claude.ai</span><span>Claude Desktop</span></div>
+        <p>Go to <strong>Settings &rarr; Connectors</strong>, click the <strong>+</strong> button,
+        then <strong>Add custom connector</strong> (same steps on both). Paste in:</p>
+        <pre><code>https://draftshelf-mcp.ariharasudhan.com</code></pre>
+        <p>Click <strong>Add</strong>, sign in (or create an account), and click
+        <strong>Allow</strong> when asked to connect. Free, Pro, and Max accounts can add it
+        directly (Free is limited to one custom connector); on a Team/Enterprise account, an
+        organization owner adds it once under Organization Settings &rarr; Connectors, and
+        members then enable it individually.</p>
+
+        <div class="tool-tabs"><span>ChatGPT</span></div>
+        <p>Open <strong>Settings &rarr; Security and login</strong> and turn on
+        <strong>Developer mode</strong> (this feature is currently only available that way). Then
+        go to <strong>Plugins</strong>, click the <strong>+</strong> button, and paste in:</p>
+        <pre><code>https://draftshelf-mcp.ariharasudhan.com</code></pre>
+        <p>Sign in and approve the connection.</p>
+
+        <h4>Try it</h4>
+        <p>Ask it something like "add a bullet to my most recent experience entry" and reload
+        DraftShelf in your browser to confirm the change is really there. Every write it makes
+        goes through the same validated, revision-checked path a browser edit does, and if GitHub
+        backup is connected, it fires from there too - reopening the same chat later needs no
+        re-sign-in, and Claude Desktop's own Connectors screen works exactly the same way as
+        claude.ai's shown above.</p>
+
+        <p class="connect-note">Disconnect any time from <strong>Settings &rarr; Connected
+        Apps</strong> in DraftShelf.</p>
+      </div>
+    </div>
   </section>
 
   <section id="faq">
@@ -133,36 +253,36 @@
 
     <details class="qa">
       <summary>Is DraftShelf free?</summary>
-      <div class="a">Yes -- every feature, including PDF/DOCX export and GitHub backup, is free with no trial period or paid tier.</div>
+      <div class="a">Yes - every feature, including PDF/DOCX export and GitHub backup, is free with no trial period or paid tier.</div>
     </details>
 
     <details class="qa">
       <summary>Do I need an account to use DraftShelf?</summary>
-      <div class="a">Yes. Signing up (email/password, Google, or GitHub) is required -- there's no guest
-      or trial mode. This is what lets your Library and resumes sync across devices and stay private to you.</div>
+      <div class="a">Yes - sign up with email/password, Google, or GitHub. This is what lets your
+      Library and resumes sync across devices and stay private to you.</div>
     </details>
 
     <details class="qa">
       <summary>What's the difference between the Library and a Version?</summary>
-      <div class="a">Your <strong>Library</strong> is every piece of career content you've ever entered --
-      companies, roles, bullets, education, skills -- kept in one place, edited once. A <strong>Version</strong>
+      <div class="a">Your <strong>Library</strong> is every piece of career content you've ever entered -
+      companies, roles, bullets, education, skills - kept in one place, edited once. A <strong>Version</strong>
       is one tailored resume: a specific selection of Library content, in a specific order, for one job
       application. See the <a href="#glossary">Glossary</a> below for more.</div>
     </details>
 
     <details class="qa">
       <summary>If I fix a typo in a bullet, does it update on every resume that uses it?</summary>
-      <div class="a">By default, yes -- a bullet's text lives once in your Library, and every version
+      <div class="a">By default, yes - a bullet's text lives once in your Library, and every version
       referencing it shows the edited text automatically. If the field or bullet you're editing is
       currently used by one or more versions, DraftShelf asks first: update all of them, freeze the old
-      wording on some, or choose per version -- so an edit never silently changes a resume you've
+      wording on some, or choose per version - so an edit never silently changes a resume you've
       already sent out. Editing from inside a version's own "Edit details" screen additionally offers
       "Only this version," to override just that one resume without touching anything shared.</div>
     </details>
 
     <details class="qa">
       <summary>Should I download the PDF or the DOCX?</summary>
-      <div class="a">PDF for applying almost everywhere -- it's real selectable vector text (not a
+      <div class="a">PDF for applying almost everywhere - it's real selectable vector text (not a
       screenshot), so it reads correctly in applicant tracking systems. DOCX is there for when a job
       posting specifically asks for a Word file, or when you want to make manual edits outside DraftShelf.
       Note that Word paginates DOCX on its own, so page breaks can differ slightly from the PDF.</div>
@@ -171,7 +291,7 @@
     <details class="qa">
       <summary>Will my resume pass through an ATS (applicant tracking system)?</summary>
       <div class="a">The exported PDF is built from real text, not an image, and uses pure black body
-      text -- both common ATS-compatibility requirements. We can't guarantee every ATS on the market,
+      text - both common ATS-compatibility requirements. We can't guarantee every ATS on the market,
       but the export is built specifically to avoid the most common failure mode (image-based resumes
       getting rejected outright).</div>
     </details>
@@ -179,8 +299,8 @@
     <details class="qa">
       <summary>What is GitHub Backup, and is it required?</summary>
       <div class="a">It's entirely optional. If you turn it on (Settings &rarr; GitHub Manage), you create a
-      personal access token on GitHub and paste it in once -- DraftShelf then pushes a JSON copy of your
-      Library and versions to a repository you choose, automatically after every change -- a second,
+      personal access token on GitHub and paste it in once - DraftShelf then pushes a JSON copy of your
+      Library and versions to a repository you choose, automatically after every change - a second,
       personal backup you fully control. No GitHub connection is needed for anything else in the app to work.</div>
     </details>
 
@@ -191,7 +311,7 @@
       merge it into your existing Library entry-by-entry, or bring it in as a fully separate, private
       version. If you only have a plain PDF or Word resume, the same dialog shows a ready-to-copy prompt
       for pasting into an AI chatbot (ChatGPT, Claude, etc.) that converts it into the JSON shape
-      DraftShelf expects -- no manual re-typing required.</div>
+      DraftShelf expects - no manual re-typing required.</div>
     </details>
 
     <details class="qa">
@@ -199,6 +319,16 @@
       <div class="a">Only you. Every account's data is access-controlled so no one else's sign-in can read
       or write it, and DraftShelf never sells or shares your information. See our
       <a href="privacy.html">Privacy Policy</a> for the full details.</div>
+    </details>
+
+    <details class="qa">
+      <summary>Can I use DraftShelf through an AI assistant instead of the website?</summary>
+      <div class="a">Yes - Claude Code, Codex, Claude Desktop, claude.ai, and ChatGPT can all connect
+      directly to your DraftShelf account and read/write your Library and versions in conversation:
+      add bullets, tailor a version for a specific job, export a PDF, all without clicking through the
+      web app. See <a href="#ai-assistant">Connect an AI Assistant</a> above for setup steps. Everything
+      it can do goes through the same access rules and revision checks the web app itself uses, and it
+      can never touch your password or set up GitHub Backup - both stay web-app-only.</div>
     </details>
   </section>
 
@@ -209,7 +339,7 @@
     <details class="qa">
       <summary>My PDF download is taking a long time, or seems stuck</summary>
       <div class="a">The very first export after a while of inactivity can take 20-30 seconds while the
-      export service wakes back up -- this is normal, not a stall. If a dialog appears mentioning a
+      export service wakes back up - this is normal, not a stall. If a dialog appears mentioning a
       backup server, leave it open; it's automatically waiting for that wake-up and will retry on its own.
       If it's still stuck after a couple of minutes, reload and try again.</div>
     </details>
@@ -232,7 +362,7 @@
 
     <details class="qa">
       <summary>GitHub Backup shows "failed" or an error</summary>
-      <div class="a">Open Settings &rarr; GitHub Manage -- the error box there shows GitHub's own reason
+      <div class="a">Open Settings &rarr; GitHub Manage - the error box there shows GitHub's own reason
       (a common one is the connected repository having been renamed or deleted). Click "Push all now" to
       retry immediately, or disconnect and reconnect if the repository itself has changed.</div>
     </details>
@@ -240,15 +370,38 @@
     <details class="qa">
       <summary>I got a message about a "sync conflict"</summary>
       <div class="a">This means the same Library or version was edited from two tabs or devices at
-      nearly the same time. DraftShelf never silently overwrites either copy -- you'll be asked to reload
+      nearly the same time. DraftShelf never silently overwrites either copy - you'll be asked to reload
       the other device's version, keep your local copy and export it as JSON first, or force-save over
       it. When in doubt, export your local copy to JSON before choosing, just in case.</div>
     </details>
 
     <details class="qa">
       <summary>I navigated away from a version and can't find my way back</summary>
-      <div class="a">Look for the dashed "&#8617; Continue editing" pill in the top navigation bar -- it
+      <div class="a">Look for the dashed "&#8617; Continue editing" pill in the top navigation bar - it
       appears anywhere except the Dashboard whenever a version is open, and jumps straight back to it.</div>
+    </details>
+
+    <details class="qa">
+      <summary>My AI assistant says it can't find any DraftShelf tools</summary>
+      <div class="a">Confirm the config command was added correctly and the tool was fully restarted
+      afterward (not just a new chat in the same running app) - most MCP clients only load server config
+      on startup. For Claude Code/Codex, running the add command a second time will tell you if it's
+      already registered. If it's still missing, remove and re-add it.</div>
+    </details>
+
+    <details class="qa">
+      <summary>My AI assistant opened a browser tab for sign-in and I closed it, or it timed out</summary>
+      <div class="a">Just ask your assistant to try again - the next attempt opens a fresh sign-in tab. If
+      you did finish signing in but your tool gave up waiting before you were done, finish anyway (the
+      sign-in page itself stays open and working for a few minutes) and then ask your assistant to retry;
+      it will find your credentials already stored and skip the browser step entirely.</div>
+    </details>
+
+    <details class="qa">
+      <summary>How do I disconnect an AI assistant from my account?</summary>
+      <div class="a">Open Settings &rarr; Connected Apps - every assistant with access is listed there,
+      with a Revoke button next to each one. Revoking takes effect immediately; the assistant will need to
+      sign in again to reconnect.</div>
     </details>
   </section>
 
@@ -258,18 +411,21 @@
     <dl class="glossary">
       <div class="gterm"><dt>Library</dt><dd>Every job, project, school, skill, summary, and reference you've ever entered, kept in one account-wide place. Edited once, used everywhere.</dd></div>
       <div class="gterm"><dt>Version</dt><dd>One tailored resume: a specific selection of Library content, in a specific order, plus its own job details and style. You can have as many as you like.</dd></div>
-      <div class="gterm"><dt>Skill Set</dt><dd>A saved, reusable bundle of skill categories -- pick one set instead of re-checking the same boxes on every new version.</dd></div>
+      <div class="gterm"><dt>Skill Set</dt><dd>A saved, reusable bundle of skill categories - pick one set instead of re-checking the same boxes on every new version.</dd></div>
       <div class="gterm"><dt>Tag</dt><dd>A short label (e.g. "backend", "data") you can put on bullets or skill categories, then use to quickly pull in everything written for that kind of role.</dd></div>
-      <div class="gterm"><dt>Standalone version</dt><dd>A version imported from a file that keeps its own private copy of its content instead of referencing your shared Library -- useful for a one-off resume that shouldn't affect your account data.</dd></div>
+      <div class="gterm"><dt>Standalone version</dt><dd>A version imported from a file that keeps its own private copy of its content instead of referencing your shared Library - useful for a one-off resume that shouldn't affect your account data.</dd></div>
       <div class="gterm"><dt>References mode</dt><dd>Whether a version prints your actual reference list in full, or just the line "References available upon request."</dd></div>
-      <div class="gterm"><dt>Cover Letter</dt><dd>A separate one-page tool for drafting a matching cover letter -- not tied to the Library/Version system, since a cover letter isn't reusable content the way a resume bullet is.</dd></div>
+      <div class="gterm"><dt>Cover Letter</dt><dd>A separate one-page tool for drafting a matching cover letter - not tied to the Library/Version system, since a cover letter isn't reusable content the way a resume bullet is.</dd></div>
       <div class="gterm"><dt>GitHub Backup</dt><dd>An optional, one-way (push-only) automatic backup of your Library and versions to a GitHub repository you choose. DraftShelf never reads anything back from GitHub.</dd></div>
+      <div class="gterm"><dt>MCP (Model Context Protocol)</dt><dd>An open standard that lets an AI assistant call an app's own tools directly in conversation, instead of you clicking through its UI. It's how Claude Code, Codex, Claude Desktop, claude.ai, and ChatGPT can read and write your DraftShelf Library and versions.</dd></div>
+      <div class="gterm"><dt>Connector</dt><dd>The name claude.ai and ChatGPT use for an MCP connection you add in their own settings, no local install needed - as opposed to a local MCP server, which runs on your own machine for tools like Claude Code or Codex.</dd></div>
+      <div class="gterm"><dt>Connected Apps</dt><dd>The Settings panel listing every AI assistant currently signed in to your account, with a Revoke button to disconnect any of them.</dd></div>
     </dl>
   </section>
 
   <section id="contact">
     <h2>Contact</h2>
-    <p class="section-sub">DraftShelf is an independently run tool, not a company with a support team --
+    <p class="section-sub">DraftShelf is an independently run tool, not a company with a support team -
     email is genuinely the fastest way to reach a real person.</p>
     <div class="contact-grid">
       <div class="contact-card">
@@ -286,7 +442,7 @@
 
   <a class="back" href="index.html">&larr; Back to DraftShelf</a>
 </div>
-<!-- Vercel Web Analytics / Speed Insights -- see index.html's own comment on this same pair
+<!-- Vercel Web Analytics / Speed Insights - see index.html's own comment on this same pair
      of tags for why this is the plain-HTML form and why the paths are absolute. -->
 <script defer src="/_vercel/insights/script.js"></script>
 <script defer src="/_vercel/speed-insights/script.js"></script>
