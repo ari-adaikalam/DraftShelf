@@ -11,7 +11,8 @@ DraftShelf is a resume builder built around one idea: your work history doesn't 
 - **[Supabase](https://supabase.com) (Postgres + Auth)**: The source of truth for every signed-in account, with row-level security doing the actual access control rather than anything client-side.
 - **Python / Flask + Playwright (headless Chromium)**: A small server-side service that renders each resume through a real browser for PDF export, so the output carries genuine selectable text instead of a screenshot.
 - **docx.js**: A second, independent export path that builds a real Word document client-side.
-- **Supabase Edge Functions (Deno)**: A one-way, push-only GitHub backup - a user's own PAT is stored in Supabase Vault and never touches anything but the Edge Function.
+- **Supabase Edge Functions (Deno)**: A one-way, push-only GitHub backup - a user's own PAT is stored in Supabase Vault and never touches anything but the Edge Function. A second Edge Function runs a full OAuth 2.1 authorization server for the AI-assistant integration below.
+- **Model Context Protocol (MCP)**: A published npm package ([`draftshelf-mcp`](https://www.npmjs.com/package/draftshelf-mcp)) for local AI tools like Claude Code and Codex, plus a remote HTTP endpoint for claude.ai and ChatGPT, both giving a signed-in account's own AI assistant direct, revision-checked read/write access to its Library and Versions. The remote endpoint is a standards-compliant OAuth 2.1 authorization server in its own right - dynamic client registration and token revocation included - so claude.ai and ChatGPT connect the same way they would to any other third-party service, no manual setup required.
 - **Plain Node test scripts (no framework)**: Pure-function tests alongside jsdom-driven integration tests that exercise the actual UI.
 
 ## Live Demo
@@ -29,6 +30,9 @@ DraftShelf is a resume builder built around one idea: your work history doesn't 
 
 ### Editor
 <img src="assets/help/04-editor.png" width="800"/>
+
+### Connect an AI Assistant
+<img src="assets/help/07-ai-assistant.png" width="800"/>
 
 ---
 
@@ -54,11 +58,13 @@ Because it's a real account with a real database behind it, it also follows you 
 - **Exports that hold up** - Pagination never splits a bullet or an entry across a page break, and the live preview matches the export exactly, because it's rendered by an actual headless browser - real selectable text, not a screenshot. DOCX export is a second, independent path that opens cleanly in Word or Google Docs. A matching cover letter tool shares none of the resume's data model - it's a one-off by design, not something you build a library of.
 - **Nothing gets lost by accident** - Undo/redo throughout, a save status that's always visible, a two-device-editing conflict banner instead of a silent overwrite, and a Trash for deleted versions instead of a permanent one-click delete.
 - **Everywhere it needs to be** - Light and dark theme, real bookmarkable URLs with working back/forward, and a layout that holds up on a phone.
+- **Talk to it from an AI assistant** - Connect Claude Code, Codex, Claude Desktop, claude.ai, or ChatGPT (Settings → Connected Apps) and add bullets, tailor a version for a specific job, or export a PDF through normal conversation. Every write goes through the exact same access-controlled, revision-checked path a browser edit does, and it can never touch a password or set up GitHub backup - both stay web-app-only, by design.
 
 ## Architecture
 
-<img src="assets/architecture.png" width="900"/>
+`paginate()` is the layout engine: it builds real DOM nodes for every resume block, measures each one's actual rendered height, and bin-packs them into pages so a heading is never orphaned alone at the bottom and an entry is never split mid-way. PDF export reuses those same already-paginated pages, sending the HTML to a server-side headless-Chromium service instead of screenshotting the browser - real vector text in, real vector text out. Every write to Supabase carries an expected revision number; a mismatch means someone else saved first, and surfaces as a conflict banner with three ways to resolve it, instead of silently overwriting a change.
 
+The MCP integration is a thin layer over the same code the web app itself runs, not a separate implementation: an AI-driven edit goes through the identical pure reducers the browser's own editor calls, so it carries the same guarantees - valid generated ids, the same dangling-reference tolerance, the same revision-conflict handling - as one made by hand. PDF export over MCP works the same way for a different reason: measuring real page layout needs a real browser, so it drives an actual signed-in session through the live app with headless Chromium rather than trying to re-render a resume's layout from scratch. The connector endpoint and its OAuth server share one clean domain, so real clients can discover and register with it automatically - no manually pasted client ID or secret required on either side.
 
 ---
 

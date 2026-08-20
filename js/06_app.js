@@ -126,6 +126,10 @@ var LIB_TAB = 'experience';
 // reload; that's the exact behavior being removed here, not a bug being fixed.
 var PANEL_OPEN_STATE = {};
 var ghPanelOpen = false;
+var apiKeysPanelOpen = false;
+var pendingRevokeKey = null; // same arm-then-confirm pattern as pendingDelete/pendingPurge
+var justGeneratedKey = null; // { rawKey, id } -- shown once, in-memory only, never persisted
+var pendingRevokeConnectedApp = null; // same arm-then-confirm pattern, for Connected Apps' own Revoke
 var trashPanelOpen = false;
 var TRASH_VERSIONS = [];
 var TRASH_COUNT = 0; // kept in sync locally by every trash-count-changing action below, rather
@@ -150,8 +154,38 @@ var LIBRARY_PENDING_SAVES = {}; // path -> { originalValue, kind, refId, bulletI
 var GITHUB_CONFIG = null;
 var syncConflict = null;
 var PREFERENCES = null; // account-level, synced via Supabase user_preferences -- see renderPreferences()
-var AUTH_MODE = 'landing'; // 'landing' | 'signin' | 'signup' | 'forgot' | 'magic' | 'reset'
+var AUTH_MODE = 'landing'; // 'landing' | 'signin' | 'signup' | 'forgot' | 'magic' | 'reset' | 'oauth-consent'
 var AUTH_MESSAGE = null; // {kind:'error'|'info', text}
+
+// Remote MCP (claude.ai/chatgpt.com) OAuth consent -- mcp-remote-auth's own /authorize (Edge
+// Function) can't render an interactive HTML+JS page itself (a real, verified platform
+// limitation: Supabase forces Content-Type:text/plain + X-Content-Type-Options:nosniff on
+// every response from the shared *.supabase.co Edge Functions domain, regardless of what the
+// function sets -- confirmed live, not assumed, by deploying a trivial text/html response and
+// watching the browser receive text/plain instead). So /authorize instead 302-redirects here,
+// to this app's own real origin, with the pending request's params as query params -- this app
+// renders the actual sign-in/consent screen (AUTH_MODE='oauth-consent' below), reusing its own
+// already-real Supabase session when one exists instead of asking to sign in twice.
+// OAUTH_REQUEST is parsed once from the URL in init() (see recoveryRequested's own pattern) and
+// kept in memory only -- never persisted, same as every other transient auth-flow state here.
+var OAUTH_REQUEST = null; // {clientId, clientName, redirectUri, codeChallenge, state, consentToken, consentExpiresAt}
+var OAUTH_SESSION = null; // the real, verified session used to complete the consent POST
+
+// Real, reported gap: the consent screen never said how long this specific request/link stays
+// valid, which read as if it might work indefinitely - it doesn't (mcp-remote-auth's own
+// verifyConsentToken() rejects it past consentExpiresAt, 10 minutes after /authorize issued it).
+// Only ever called for a request that's still valid (see the oauth-consent render branch below,
+// which switches to a completely different, button-less expired screen once it isn't) - so this
+// only ever needs to describe "still good for N more minutes," never the lapsed case.
+function oauthConsentExpiryLabel(consentExpiresAt){
+  if(!consentExpiresAt) return 'This request expires a few minutes after being opened.';
+  const minsLeft = Math.max(1, Math.round((consentExpiresAt - Date.now())/60000));
+  return `This request expires in about ${minsLeft} minute${minsLeft===1?'':'s'} if not confirmed.`;
+}
+// Fires renderAuthScreen() again the instant a still-valid consent request's own expiry passes,
+// so a tab left open through that moment flips itself over to the expired screen live - without
+// this, only a fresh page load (a new GET /authorize) would ever notice the request had lapsed.
+var OAUTH_CONSENT_EXPIRY_TIMER = null;
 
 /* ===== Standalone (import-as-separate-version) support =====
    "Import as separate version" (see showImportChoiceDialog()/showStandaloneImportDialog()
@@ -560,6 +594,47 @@ function renderAuthScreen(){
     // the single-fold hero content vertically inside it.
     el.innerHTML = `<div class="auth-page"><div class="auth-hero-wrap">${authLandingHtml()}</div>${legalLinks}</div>`;
     animateAuthLandingIn();
+  } else if(AUTH_MODE==='oauth-consent'){
+    // Any previously-scheduled "flip to expired" timer belongs to whatever was rendered last -
+    // always cleared here, at the top of every render, so it never fires against a screen this
+    // call is about to replace (a stale timer re-triggering this same branch after the user has
+    // already moved on, e.g. to 'landing', would otherwise yank them back to a consent screen
+    // they'd already left).
+    if(OAUTH_CONSENT_EXPIRY_TIMER){ clearTimeout(OAUTH_CONSENT_EXPIRY_TIMER); OAUTH_CONSENT_EXPIRY_TIMER = null; }
+    const msUntilExpiry = OAUTH_REQUEST.consentExpiresAt ? OAUTH_REQUEST.consentExpiresAt - Date.now() : null;
+    const isExpired = msUntilExpiry !== null && msUntilExpiry <= 0;
+    if(isExpired){
+      // A lapsed request is a dead end, on purpose - Allow/Deny would just fail server-side
+      // anyway (verifyConsentToken() rejects it), and showing them next to an error reads as if
+      // retrying might work. No account row either - nothing about this account's connection was
+      // ever completed, so there's nothing account-specific left to show.
+      el.innerHTML = `<div class="auth-page"><div class="auth-box">
+        <h2>Connection request expired</h2>
+        <div class="auth-message auth-message-error">This request to connect ${esc(OAUTH_REQUEST.clientName)} is no longer valid - it's been more than 10 minutes since it was opened. Start the connection again from ${esc(OAUTH_REQUEST.clientName)} to get a fresh link.</div>
+        <a href="#" class="auth-back-link" data-action="switch-landing">&larr; Back to DraftShelf</a>
+      </div>
+      ${legalLinks}</div>`;
+    } else {
+      // No back link (same reasoning 'reset' already has -- arrived at via a redirect carrying
+      // real intent, not a choice mid-flow) and its own body, not authFieldsHtml()/
+      // authFooterHtml() -- this isn't a credential form, so it doesn't fit that shape.
+      el.innerHTML = `<div class="auth-page"><div class="auth-box">
+        <h2>Connect ${esc(OAUTH_REQUEST.clientName)}</h2>
+        <p class="oauth-consent-desc">This will let <b>${esc(OAUTH_REQUEST.clientName)}</b> read and edit your DraftShelf Library and Versions, on your behalf, until you disconnect it.</p>
+        <div class="oauth-consent-account">Connecting as <b>${esc(OAUTH_SESSION.user.email)}</b></div>
+        ${AUTH_MESSAGE ? `<div class="auth-message auth-message-${AUTH_MESSAGE.kind}">${esc(AUTH_MESSAGE.text)}</div>` : ''}
+        <button class="btn btn-brass auth-submit" data-action="oauth-allow">Allow</button>
+        <button class="btn btn-ghost auth-submit" data-action="oauth-deny">Deny</button>
+        <p class="oauth-consent-expiry">${esc(oauthConsentExpiryLabel(OAUTH_REQUEST.consentExpiresAt))}</p>
+      </div>
+      ${legalLinks}</div>`;
+      if(msUntilExpiry !== null){
+        OAUTH_CONSENT_EXPIRY_TIMER = setTimeout(()=>{
+          OAUTH_CONSENT_EXPIRY_TIMER = null;
+          if(AUTH_MODE==='oauth-consent') renderAuthScreen();
+        }, msUntilExpiry + 250); // +250ms so Date.now() at the next render is unambiguously past expiry, not equal to it
+      }
+    }
   } else {
     // A small "Back" link on every form screen except 'reset' (arrived at only via a real
     // recovery email, not a choice -- there's no sensible "back" target mid-password-reset).
@@ -585,7 +660,7 @@ function renderAuthScreen(){
   const onLanding = AUTH_MODE==='landing';
   document.getElementById('btnTopbarSignIn').style.display = onLanding ? '' : 'none';
   document.getElementById('btnTopbarSignUp').style.display = onLanding ? '' : 'none';
-  document.getElementById('btnTopbarClose').style.display = (!onLanding && AUTH_MODE!=='reset') ? '' : 'none';
+  document.getElementById('btnTopbarClose').style.display = (!onLanding && AUTH_MODE!=='reset' && AUTH_MODE!=='oauth-consent') ? '' : 'none';
 }
 // A real, reported gap, arguably the single most important place in the app to have loading
 // feedback: none of these buttons showed anything at all while awaiting Supabase -- clicking
@@ -659,7 +734,7 @@ async function onAuthClick(ev){
       // emailRedirectTo, not redirectTo -- signInWithOtp()'s own option name (resetPasswordForEmail()
       // above uses redirectTo; both ultimately just set where the emailed link sends the browser).
       const { error } = await window.supabase.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.origin+window.location.pathname } });
-      AUTH_MESSAGE = error ? { kind:'error', text:error.message } : { kind:'info', text:'Check your email for a sign-in link -- open it in this same browser.' };
+      AUTH_MESSAGE = error ? { kind:'error', text:error.message } : { kind:'info', text:'Check your email for a sign-in link - open it in this same browser.' };
       renderAuthScreen();
     })());
     return;
@@ -668,11 +743,58 @@ async function onAuthClick(ev){
     const password = document.getElementById('authPassword').value;
     await withTextButtonLoading(el, 'Updating…', (async()=>{
       const { error } = await window.supabase.auth.updateUser({ password });
-      AUTH_MESSAGE = error ? { kind:'error', text:error.message } : { kind:'info', text:'Password updated -- signing you in.' };
+      AUTH_MESSAGE = error ? { kind:'error', text:error.message } : { kind:'info', text:'Password updated - signing you in.' };
       renderAuthScreen();
     })());
     return;
   }
+  if(action==='oauth-allow' || action==='oauth-deny'){
+    // POSTs to mcp-remote-auth's own /authorize (already the verified, spec-compliant
+    // endpoint -- see supabase/functions/mcp-remote-auth/index.ts) carrying OAUTH_SESSION's
+    // real access token as a Bearer header (never a client-supplied user id) plus the
+    // consent_token minted when this request was first redirected here, the CSRF guard on
+    // this exact action -- see that file's own header comment for why both exist together.
+    await withTextButtonLoading(el, action==='oauth-allow' ? 'Connecting…' : 'Declining…', (async()=>{
+      try{
+        const res = await fetch(window.supabase.supabaseUrl+'/functions/v1/mcp-remote-auth/authorize', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+OAUTH_SESSION.access_token },
+          body: JSON.stringify({
+            client_id: OAUTH_REQUEST.clientId,
+            redirect_uri: OAUTH_REQUEST.redirectUri,
+            code_challenge: OAUTH_REQUEST.codeChallenge,
+            state: OAUTH_REQUEST.state,
+            consent_token: OAUTH_REQUEST.consentToken,
+            action: action==='oauth-allow' ? 'allow' : 'deny',
+          }),
+        });
+        const body = await res.json();
+        if(!res.ok || !body.redirect_to){
+          AUTH_MESSAGE = { kind:'error', text: body.error_description || body.error || 'Something went wrong - please try connecting again.' };
+          renderAuthScreen();
+          return;
+        }
+        window.location.href = body.redirect_to;
+      } catch(e){
+        AUTH_MESSAGE = { kind:'error', text:'Network error, please try again.' };
+        renderAuthScreen();
+      }
+    })());
+    return;
+  }
+}
+// Shared by both places init() can discover a real session while OAUTH_REQUEST is pending (an
+// already-signed-in visitor, and a visitor who just signed in through the form this same
+// pending request forced them into) -- see OAUTH_REQUEST's own var declaration for why this
+// exists instead of loadAuthedAppState()'s normal Dashboard landing.
+function showOAuthConsent(session){
+  OAUTH_SESSION = session;
+  AUTH_MODE = 'oauth-consent';
+  AUTH_MESSAGE = null;
+  document.getElementById('topbarAuthedControls').style.display = 'none';
+  document.getElementById('topbarSignedOut').style.display = 'none';
+  document.querySelector('.topbar').classList.remove('is-authed');
+  renderAuthScreen();
 }
 async function signOut(){
   await window.supabase.auth.signOut();
@@ -1640,7 +1762,7 @@ async function runGithubPushCycle(){
 }
 async function pushAllToGithub(){
   if(!GITHUB_CONFIG || !GITHUB_CONFIG.backup_enabled) return;
-  if(ghPushInFlight){ toast('A backup is already in progress -- try again in a moment'); return; }
+  if(ghPushInFlight){ toast('A backup is already in progress - try again in a moment'); return; }
   // "Push all now" supersedes any pending individual pushes -- cancel the debounce timer and
   // clear dirty state rather than letting a queued single-file push race this one afterward.
   clearTimeout(ghPushTimer); ghDirty.library=false; ghDirty.versions.clear(); ghFirstDirtyAt=null;
@@ -1772,6 +1894,174 @@ function renderGhPanel(){
     })());
   };
   if(isFreshOpen) animateModalIn(document.getElementById('ghModalOverlay'));
+}
+
+/* ===== API Keys -- personal keys for the MCP integration (Claude Code, Codex, and other local
+   AI tools reading/writing this account's Library and Versions directly). Same modal chrome and
+   "Getting started" pattern as renderGhPanel() above -- numbered steps shown only while no key
+   exists yet, replaced by the key list once one does. See
+   docs/superpowers/plans/2026-08-19-mcp-ai-integration.md's own Task 2. ===== */
+function apiKeysStatusInfo(keys){
+  if(!keys.length) return { main:'No keys yet', sub:'Generate one below to connect an AI tool to your account.' };
+  return { main: keys.length+' active key'+(keys.length===1?'':'s'), sub:'Revoke any key below to disconnect it immediately.' };
+}
+// A connected app's access token is short-lived (1 hour, supabase/functions/mcp-remote-auth's
+// own issueTokenPair()) and silently renewed in the background every time the app is actually
+// used - there's no user-facing moment to interrupt for that, by design. This renders what that
+// actually looks like right now: still-valid tokens show a countdown so it's visible that expiry
+// is real and enforced (not indefinite), while a token that's already lapsed (the connected app
+// hasn't been used in over an hour) shows the accurate "will renew on next use" state instead of
+// a stale or negative countdown.
+function accessTokenExpiryLabel(expiresAtIso){
+  if(!expiresAtIso) return '';
+  const msLeft = new Date(expiresAtIso).getTime() - Date.now();
+  if(msLeft <= 0) return 'Access token lapsed - renews automatically on next use';
+  const minsLeft = Math.max(1, Math.round(msLeft/60000));
+  return `Access token expires in ${minsLeft} min${minsLeft===1?'':'s'} - renews automatically while in use`;
+}
+// Shared row markup for both lists in this modal -- API Keys and Connected Apps show the exact
+// same shape (label, created/last-used dates, a two-click-confirm Revoke button), just against
+// different data-* attributes and pendingRevoke* state vars, so this is the one place that shape
+// is defined rather than two near-identical copies. accessTokenExpiresAt is only ever set for a
+// Connected Apps row (API keys have no per-token expiry at all, see api_keys' own indefinite-
+// until-revoked posture) - undefined there renders no third line, unchanged from before.
+function connectedItemRowHtml(item, revokeAttr, pendingId){
+  const expiryLabel = accessTokenExpiryLabel(item.accessTokenExpiresAt);
+  return `<div class="api-key-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+    <div>
+      <div style="font-weight:600;">${esc(item.label)}</div>
+      <div style="font-size:11px;color:var(--text-faint);">Created ${new Date(item.createdAt).toLocaleDateString()} &middot; Last used: ${item.lastUsedAt ? new Date(item.lastUsedAt).toLocaleDateString() : 'Never'}</div>
+      ${expiryLabel ? `<div style="font-size:11px;color:var(--text-faint);">${esc(expiryLabel)}</div>` : ''}
+    </div>
+    <button class="btn btn-danger btn-sm" ${revokeAttr}="${esc(item.id)}" style="${item.id===pendingId?'font-weight:700;':''}">${item.id===pendingId?'Confirm?':'Revoke'}</button>
+  </div>`;
+}
+// Personal API key generation/listing is disabled for now (the account owner chose browser
+// sign-in only for local MCP tools) - set true to bring the whole "Active keys" section, the
+// "+ Generate new key" button, and the one-time raw-key reveal back. DB.generateApiKey/
+// listApiKeys/revokeApiKey and the api_keys table are untouched, so flipping this back on needs
+// no other change.
+const API_KEYS_UI_ENABLED = false;
+async function renderApiKeysPanel(){
+  const wrap = document.getElementById('apiKeysPanelWrap');
+  if(!apiKeysPanelOpen){ wrap.innerHTML=''; justGeneratedKey=null; return; }
+  const isFreshOpen = wrap.children.length===0;
+  const [keysRes, appsRes] = await Promise.all([
+    API_KEYS_UI_ENABLED ? DB.listApiKeys() : Promise.resolve({ ok:true, keys:[] }),
+    DB.listConnectedApps(),
+  ]);
+  const keys = keysRes.ok ? keysRes.keys : [];
+  const apps = appsRes.ok ? appsRes.apps : [];
+  const status = apiKeysStatusInfo(keys);
+  wrap.innerHTML = `<div class="gh-modal-overlay" id="apiKeysModalOverlay">
+    <div class="gh-modal-box">
+      <div class="gh-modal-header">
+        <h3>${API_KEYS_UI_ENABLED ? 'API Keys &amp; Connected Apps' : 'Connected Apps'}</h3>
+        <button class="gh-modal-close" id="apiKeysModalClose" aria-label="Close">${ICONS.close}</button>
+      </div>
+      <div class="gh-modal-body">
+        ${API_KEYS_UI_ENABLED ? `
+        <div class="gh-status-strip">
+          <span class="dot ${keys.length?'on':''}"></span>
+          <div><div class="gh-status-main">${esc(status.main)}</div><div class="gh-status-sub">${esc(status.sub)}</div></div>
+        </div>
+
+        ${justGeneratedKey ? `
+        <div class="gh-section-label">Your new key</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;">Copy this now - it won't be shown again. Paste it into your AI tool's MCP config as <code>DRAFTSHELF_API_KEY</code>.</p>
+        <div class="field-row" style="align-items:center;gap:8px;">
+          <input type="text" id="newApiKeyValue" readonly value="${esc(justGeneratedKey.rawKey)}" style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;" onclick="this.select()">
+          <button class="btn btn-ghost btn-sm" id="btnCopyApiKey" type="button">${ICONS.copy} Copy</button>
+        </div>` : ''}
+
+        ${!keys.length ? `
+        <div class="gh-section-label">Getting started</div>
+        <ol class="gh-steps">
+          <li>Click "+ Generate new key" below and copy it somewhere safe - it's shown once.</li>
+          <li>Add <code>draftshelf-mcp</code> to your AI tool's MCP config with your key (<code>npx</code> fetches it automatically; the exact config file/format differs by tool - see the full guide).</li>
+          <li>Restart your AI tool. It can now read and edit your Library and Versions directly.</li>
+        </ol>` : `
+        <div class="gh-section-label">Active keys</div>
+        <div class="api-keys-list">
+          ${keys.map(k=>connectedItemRowHtml(k, 'data-revoke-key', pendingRevokeKey)).join('')}
+        </div>`}
+
+        <div class="gh-section-label" style="margin-top:18px;">Connected Apps</div>` : ''}
+        ${!apps.length ? `
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">No apps connected yet. Add DraftShelf as a custom connector directly from claude.ai or ChatGPT, then sign in and approve when it asks.</p>` : `
+        <div class="api-keys-list">
+          ${apps.map(a=>connectedItemRowHtml(a, 'data-revoke-connected-app', pendingRevokeConnectedApp)).join('')}
+        </div>`}
+        <p style="font-size:12px;color:var(--text-muted);margin:10px 0 0;">See the <a href="help.html#ai-assistant" target="_blank" rel="noopener">full setup guide</a> for exact steps, including connecting Claude Code, Codex, or Claude Desktop.</p>
+      </div>
+      ${API_KEYS_UI_ENABLED ? `<div class="gh-actions">
+        <button class="btn btn-brass btn-sm" id="btnGenerateApiKey">+ Generate new key</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+  document.getElementById('apiKeysModalClose').onclick = ()=>{ apiKeysPanelOpen=false; renderApiKeysPanel(); };
+  document.getElementById('apiKeysModalOverlay').addEventListener('click', (ev)=>{ if(ev.target.id==='apiKeysModalOverlay'){ apiKeysPanelOpen=false; renderApiKeysPanel(); } });
+
+  const copyBtn = document.getElementById('btnCopyApiKey');
+  if(copyBtn) copyBtn.onclick = async ()=>{
+    try{
+      await navigator.clipboard.writeText(justGeneratedKey.rawKey);
+      toast('Key copied');
+    }catch(e){
+      const input = document.getElementById('newApiKeyValue');
+      if(input){ input.focus(); input.select(); }
+      toast('Could not copy automatically - key is selected, use Cmd/Ctrl+C');
+    }
+  };
+
+  const generateBtn = document.getElementById('btnGenerateApiKey');
+  if(generateBtn) generateBtn.onclick = async (ev)=>{
+    await withTextButtonLoading(ev.currentTarget, 'Generating…', (async()=>{
+      const label = 'MCP key '+new Date().toLocaleDateString();
+      const res = await DB.generateApiKey(label);
+      if(res.ok){ justGeneratedKey = { rawKey: res.rawKey, id: res.id }; toast('Key generated'); }
+      else toast('Could not generate key: '+(res.error||'unknown error'));
+      renderApiKeysPanel();
+    })());
+  };
+
+  document.querySelectorAll('[data-revoke-key]').forEach(btn=>{
+    btn.onclick = async (ev)=>{
+      const id = ev.currentTarget.getAttribute('data-revoke-key');
+      if(pendingRevokeKey===id){
+        await withTextButtonLoading(ev.currentTarget, 'Revoking…', (async()=>{
+          const res = await DB.revokeApiKey(id);
+          pendingRevokeKey = null;
+          if(res.ok) toast('Key revoked'); else toast('Could not revoke key: '+(res.error||'unknown error'));
+          renderApiKeysPanel();
+        })());
+      }else{
+        pendingRevokeKey = id;
+        renderApiKeysPanel();
+        setTimeout(()=>{ if(pendingRevokeKey===id){ pendingRevokeKey=null; renderApiKeysPanel(); } }, 4000);
+      }
+    };
+  });
+
+  document.querySelectorAll('[data-revoke-connected-app]').forEach(btn=>{
+    btn.onclick = async (ev)=>{
+      const id = ev.currentTarget.getAttribute('data-revoke-connected-app');
+      if(pendingRevokeConnectedApp===id){
+        await withTextButtonLoading(ev.currentTarget, 'Revoking…', (async()=>{
+          const res = await DB.revokeConnectedApp(id);
+          pendingRevokeConnectedApp = null;
+          if(res.ok) toast('App disconnected'); else toast('Could not disconnect: '+(res.error||'unknown error'));
+          renderApiKeysPanel();
+        })());
+      }else{
+        pendingRevokeConnectedApp = id;
+        renderApiKeysPanel();
+        setTimeout(()=>{ if(pendingRevokeConnectedApp===id){ pendingRevokeConnectedApp=null; renderApiKeysPanel(); } }, 4000);
+      }
+    };
+  });
+
+  if(isFreshOpen) animateModalIn(document.getElementById('apiKeysModalOverlay'));
 }
 
 /* ===== Trash -- soft-deleted versions, recoverable until purged. Added on request ("if i
@@ -2212,7 +2502,7 @@ function showImportResumeDialog(){
       // select-the-textarea so the user can still Cmd/Ctrl+C manually.
       const ta = document.getElementById('aiImportPromptText');
       if(ta){ ta.focus(); ta.select(); }
-      toast('Could not copy automatically -- text is selected, use Cmd/Ctrl+C');
+      toast('Could not copy automatically - text is selected, use Cmd/Ctrl+C');
     }
   });
   document.getElementById('btnImportResumeChooseFile').addEventListener('click', ()=>{
@@ -3204,7 +3494,7 @@ function cancelLibraryImpact(){
   LIBRARY_IMPACT = null;
   LIBRARY_IMPACT_MODE = 'summary';
   renderLibraryImpactDialog();
-  toast('Not saved yet -- click Save again when you\'re ready to decide.');
+  toast('Not saved yet - click Save again when you\'re ready to decide.');
 }
 // Wraps an explicit Update/Freeze/Apply click: sets the busy guard for the duration of the real
 // (possibly multi-version) write so cancelLibraryImpact() can't fire concurrently, and always
@@ -3223,7 +3513,7 @@ async function runLibraryImpactAction(fn){
     await fn();
   } catch(e){
     console.error('Library impact action failed:', e);
-    toast('Something went wrong applying that change -- nothing was lost, try again.');
+    toast('Something went wrong applying that change - nothing was lost, try again.');
     LIBRARY_IMPACT = null;
     renderLibraryImpactDialog();
   } finally {
@@ -3269,9 +3559,9 @@ async function finishLibraryImpact(impact, summary){
   LIBRARY_IMPACT = null;
   renderLibraryImpactDialog();
   if(res && res.conflict){
-    toast('Saved to other versions, but the Library itself hit a sync conflict -- see the banner above to resolve it.');
+    toast('Saved to other versions, but the Library itself hit a sync conflict - see the banner above to resolve it.');
   } else if(res && res.ok===false){
-    toast('The version(s) were updated, but saving the Library itself failed -- try editing this field again.');
+    toast('The version(s) were updated, but saving the Library itself failed - try editing this field again.');
   } else {
     toast('Saved. '+summary);
   }
@@ -3313,7 +3603,7 @@ async function freezeVersionForImpact(versionId, impact){
     }
   } else {
     const v = impact.versions.find(x=>x.id===versionId);
-    toast(`Couldn't freeze wording for "${v?v.name:'a version'}" -- try again`);
+    toast(`Couldn't freeze wording for "${v?v.name:'a version'}" - try again`);
   }
   return res.ok;
 }
@@ -3388,7 +3678,7 @@ function cancelEntryEditImpact(){
   ENTRY_EDIT_IMPACT = null;
   renderEntryEditImpactDialog();
   renderEditor();
-  toast('No versions frozen -- they\'ll all pick up the new text.');
+  toast('No versions frozen - they\'ll all pick up the new text.');
 }
 async function runEntryEditImpactAction(fn){
   ENTRY_EDIT_IMPACT_BUSY = true;
@@ -3396,7 +3686,7 @@ async function runEntryEditImpactAction(fn){
     await fn();
   } catch(e){
     console.error('Entry-edit impact action failed:', e);
-    toast('Something went wrong -- nothing was lost, try again.');
+    toast('Something went wrong - nothing was lost, try again.');
     ENTRY_EDIT_IMPACT = null;
     renderEntryEditImpactDialog();
   } finally {
@@ -3414,7 +3704,7 @@ async function resolveEntryEditImpact(){
   const failedCount = results.filter(ok=> ok===false).length;
   const updatedCount = impact.versions.length - toFreeze.length;
   if(failedCount>0){
-    toast(`${toFreeze.length-failedCount} frozen, ${updatedCount} updated -- ${failedCount} failed, see above.`);
+    toast(`${toFreeze.length-failedCount} frozen, ${updatedCount} updated - ${failedCount} failed, see above.`);
   } else {
     toast(`Done. ${toFreeze.length} frozen, ${updatedCount} updated.`);
   }
@@ -3443,7 +3733,7 @@ async function freezeVersionForEntryEditImpact(versionId, impact){
     }
   } else {
     const v = impact.versions.find(x=>x.id===versionId);
-    toast(`Couldn't freeze wording for "${v?v.name:'a version'}" -- try again`);
+    toast(`Couldn't freeze wording for "${v?v.name:'a version'}" - try again`);
   }
   return res.ok;
 }
@@ -4348,7 +4638,7 @@ function renderEntryEditModal(){
   // closed and no feedback at all about whether the edit was saved.
   document.getElementById('entryEditModalSave').onclick = ()=> saveEntryEditModal().catch(e=>{
     console.error('Saving the entry-edit modal failed:', e);
-    toast('Something went wrong saving -- try again.');
+    toast('Something went wrong saving - try again.');
   });
   const removeBtn = document.getElementById('entryEditModalRemove');
   if(removeBtn) removeBtn.onclick = ()=>{
@@ -4435,7 +4725,7 @@ async function saveEntryEditModal(){
       // not-yet-persisted Library write.
       const saveRes = await flushLibrarySave();
       if(saveRes && saveRes.ok===false && !saveRes.conflict){
-        toast('Could not save the Library -- try again.');
+        toast('Could not save the Library - try again.');
         renderEditor();
         return;
       }
@@ -4515,7 +4805,7 @@ async function saveEntryEditModal(){
     // still-pending Library save.
     const saveRes = await flushLibrarySave();
     if(saveRes && saveRes.ok===false && !saveRes.conflict){
-      toast('Could not save the Library -- try again.');
+      toast('Could not save the Library - try again.');
       renderEditor();
       return;
     }
@@ -5527,6 +5817,8 @@ async function init(){
   // should have been the only thing on screen. closeMobileMenu() is a no-op above the mobile
   // breakpoint, so this changes nothing on desktop.
   document.getElementById('btnGhOpen').addEventListener('click', ()=>{ closeSettingsMenu(); closeMobileMenu(); ghPanelOpen=!ghPanelOpen; renderGhPanel(); });
+  // Same closeMobileMenu()/closeSettingsMenu() pairing as btnGhOpen just above, same reason.
+  document.getElementById('btnApiKeysOpen').addEventListener('click', ()=>{ closeSettingsMenu(); closeMobileMenu(); apiKeysPanelOpen=!apiKeysPanelOpen; renderApiKeysPanel(); });
   // Export Shelf -- moved into the settings dropdown (was a standalone topbar button,
   // "Export JSON"); same closeSettingsMenu()/closeMobileMenu() pair every other dropdown
   // action already calls (see btnGhOpen/btnChangePassword above) before doing its own thing.
@@ -5790,6 +6082,30 @@ async function init(){
     || !!(hashParams.get('error_code') || searchParams.get('error_code'));
   if(recoveryRequested) AUTH_MODE = 'reset';
 
+  // A redirect landed here from mcp-remote-auth's own /authorize -- see OAUTH_REQUEST's own
+  // var declaration above for why this app renders the consent screen itself instead of that
+  // Edge Function doing it directly.
+  const oauthClientId = searchParams.get('oauth_client_id');
+  if(oauthClientId){
+    const consentToken = searchParams.get('oauth_consent_token') || '';
+    // The consent token is `${expiryEpochMs}.${hmacSig}` (mcp-remote-auth's own
+    // makeConsentToken()) - the expiry is already right there in plain text ahead of the
+    // signature, so it can be read directly here instead of the app inventing its own
+    // separate notion of how long this request is good for and risking it drifting out of
+    // sync with what the server actually enforces (verifyConsentToken() there rejects past
+    // this same timestamp).
+    const consentExpiresAt = Number(consentToken.split('.')[0]) || null;
+    OAUTH_REQUEST = {
+      clientId: oauthClientId,
+      clientName: searchParams.get('oauth_client_name') || 'A connector',
+      redirectUri: searchParams.get('oauth_redirect_uri') || '',
+      codeChallenge: searchParams.get('oauth_code_challenge') || '',
+      state: searchParams.get('oauth_state') || '',
+      consentToken,
+      consentExpiresAt,
+    };
+  }
+
   window.supabase.auth.onAuthStateChange((event, session)=>{
     // Cheap, permanent diagnostic -- if "switching tabs resets the app" is ever reported
     // again, checking the console for which event actually fired (and whether this handler
@@ -5805,6 +6121,10 @@ async function init(){
       // PASSWORD_RECOVERY -- recoveryRequested (captured from the URL, not the event) is what
       // keeps this landing on "choose a new password" instead of the Dashboard either way.
       if(recoveryRequested){ AUTH_MODE='reset'; AUTH_MESSAGE=null; renderAuthScreen(); return; }
+      // A visitor with OAUTH_REQUEST pending was shown the sign-in form specifically to reach
+      // this moment -- once signed in, the consent screen is the correct landing, not the
+      // normal Dashboard loadAuthedAppState() would otherwise go to.
+      if(OAUTH_REQUEST){ showOAuthConsent(session); return; }
       clearLibraryHistory(); clearVersionHistory(); loadAuthedAppState();
     }
   });
@@ -5816,7 +6136,20 @@ async function init(){
     AUTH_MESSAGE = null;
     renderAuthScreen();
   }
+  else if(session && OAUTH_REQUEST){
+    // Already signed in (a real, existing session on this browser) when the redirect landed --
+    // straight to consent, no need to ask for credentials again.
+    showOAuthConsent(session);
+  }
   else if(session) await loadAuthedAppState();
+  else if(OAUTH_REQUEST){
+    // No session yet -- show the real sign-in form (not the marketing landing page) so the
+    // visitor can actually reach the consent screen above. The SIGNED_IN handler's own
+    // OAUTH_REQUEST branch picks up from here once they do.
+    showSignedOutState();
+    AUTH_MODE = 'signin';
+    renderAuthScreen();
+  }
   else if(recoveryRequested){
     // The link carried a recovery marker but no session ever materialized -- most commonly
     // because the link was opened in a different browser (or an email app's built-in preview
@@ -5841,7 +6174,7 @@ async function init(){
     const linkType = localStorage.getItem('rf:ui:lastAuthLinkType');
     const linkNoun = linkType==='magiclink' ? 'sign-in link' : 'password reset link';
     AUTH_MESSAGE = { kind:'error', text: urlErrorDescription
-      ? `${urlErrorDescription}. Please request a new link -- and if you're sharing it via a messaging app, note some apps auto-open links to generate a preview, which can use it up before it's actually clicked.`
+      ? `${urlErrorDescription}. Please request a new link - and if you're sharing it via a messaging app, note some apps auto-open links to generate a preview, which can use it up before it's actually clicked.`
       : `This ${linkNoun} didn't work - it may have expired, already been used, or been opened in a different browser than the one you requested it from. Please request a new link and open it in the same browser.` };
     renderAuthScreen();
   }
