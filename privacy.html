@@ -3,28 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Privacy Policy — DraftShelf</title>
+<title>Privacy Policy - DraftShelf</title>
 <meta name="description" content="How DraftShelf collects, uses, and protects your data.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DraftShelf">
-<meta property="og:title" content="Privacy Policy — DraftShelf">
+<meta property="og:title" content="Privacy Policy - DraftShelf">
 <meta property="og:description" content="How DraftShelf collects, uses, and protects your data.">
-<meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
+<meta property="og:image" content="https://draftshelf.app/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
-<link rel="icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
-<link rel="shortcut icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
-<link rel="apple-touch-icon" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<meta name="twitter:image" content="https://draftshelf.app/assets/og-image.png">
+<link rel="icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="assets/draftshelf-icon.png?v=2">
 <style>
+  /* Theme-aware, matching the main app's own light/dark system (css/style.css) exactly --
+     see help.html's own comment on this same fix for why this page was light-only before
+     (a static page never wired into the app's theme infrastructure, not an intentional
+     "legal pages stay neutral" convention). */
   :root{
+    --accent:#B8860B; --accent-dark:#8B6508;
+  }
+  [data-theme="dark"]{
+    --bg:#0a0908; --surface:#17140d; --text:#FFFFFF; --text-muted:#b8ab8f;
+    --border:rgba(184,134,11,0.18);
+  }
+  [data-theme="light"]{
     --bg:#FBF9F5; --surface:#FFFFFF; --text:#1a1712; --text-muted:#6b6455;
-    --accent:#B8860B; --accent-dark:#8B6508; --border:rgba(184,134,11,0.32);
+    --border:rgba(184,134,11,0.32);
   }
   *{box-sizing:border-box;}
   body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Arial,sans-serif;line-height:1.6;}
   .wrap{max-width:1080px;margin:0 auto;padding:48px 32px 80px;}
-  .brand{display:flex;align-items:center;margin-bottom:8px;}
-  .brand img{height:26px;width:auto;flex:none;}
+  .page-top{display:flex;align-items:center;justify-content:space-between;}
+  .brand{display:flex;align-items:center;margin-bottom:8px;text-decoration:none;}
+  .brand img{height:26px;width:auto;flex:none;object-fit:contain;}
+  .brand img.logo-dark{display:none;}
+  [data-theme="dark"] .brand img.logo-light{display:none;}
+  [data-theme="dark"] .brand img.logo-dark{display:inline;}
+  .theme-toggle-standalone{background:none;border:1px solid var(--border);border-radius:20px;width:34px;height:34px;font-size:15px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;flex:none;}
+  .theme-toggle-standalone:hover{background:var(--surface);}
   h1{font-size:26px;margin:28px 0 4px;}
   .updated{font-size:13px;color:var(--text-muted);margin-bottom:32px;}
   h2{font-size:17px;margin:32px 0 10px;padding-top:8px;border-top:1px solid var(--border);}
@@ -33,13 +50,25 @@
   ul{padding-left:22px;}
   li{margin-bottom:6px;}
   a{color:var(--accent-dark);}
-  .back{display:inline-block;margin-top:40px;font-size:13px;}
   .muted{color:var(--text-muted);}
 </style>
+<script>
+// Pre-paint theme bootstrap -- see help.html's own identical copy for why this has to be an
+// early, synchronous inline script rather than something js/06_app.js handles.
+(function(){
+  var stored = null;
+  try{ stored = JSON.parse(localStorage.getItem('rf:ui:theme')); }catch(e){}
+  var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><img src="assets/draftshelf-logo.png" alt="DraftShelf"></div>
+  <div class="page-top">
+    <a class="brand" href="index.html" title="Back to DraftShelf"><img class="logo-light" src="assets/draftshelf-logo.png" alt="DraftShelf"><img class="logo-dark" src="assets/draftshelf-logo-dark.png" alt="DraftShelf"></a>
+    <button class="theme-toggle-standalone" id="btnThemeToggleStandalone" title="Toggle theme" aria-label="Toggle theme">&#9788;</button>
+  </div>
   <h1>Privacy Policy</h1>
   <p class="updated">Last updated: August 20, 2026</p>
 
@@ -50,23 +79,23 @@
   <h2>What we collect</h2>
   <p>DraftShelf is a resume-building tool. What it collects follows directly from what it does:</p>
   <ul>
-    <li><strong>Account information</strong> — your email address, used for sign-in and account-related
+    <li><strong>Account information</strong> - your email address, used for sign-in and account-related
     email (confirmation, password reset, security notifications). If you sign in with a password, it's
-    handled entirely by our authentication provider (Supabase Auth) and stored only as a salted hash —
+    handled entirely by our authentication provider (Supabase Auth) and stored only as a salted hash -
     we never see or store your plain-text password. If you sign in with Google, GitHub, or LinkedIn
     instead, we receive only your email address and basic profile info from that provider, never your
     password on their platform.</li>
-    <li><strong>Resume content you enter</strong> — everything you type into the app: your name, phone,
+    <li><strong>Resume content you enter</strong> - everything you type into the app: your name, phone,
     location, links, work history, education, skills, projects, summaries, references, and any job
     descriptions you paste in for keyword matching. This is the core of what the app stores on your
     behalf, so you can access and edit it from any device you sign into.</li>
-    <li><strong>An optional GitHub personal access token</strong> — only if you turn on GitHub Backup.
+    <li><strong>An optional GitHub personal access token</strong> - only if you turn on GitHub Backup.
     It's encrypted at rest (via Supabase Vault) and only ever decrypted server-side to push a backup
     copy of your data to a GitHub repository you choose. It's never exposed back to your browser or any
     other client after you first enter it.</li>
-    <li><strong>AI assistant connections (optional)</strong> — if you connect an AI assistant (Claude
+    <li><strong>AI assistant connections (optional)</strong> - if you connect an AI assistant (Claude
     Code, Codex, Claude Desktop, claude.ai, or ChatGPT) from Settings &rarr; Connected Apps, we store a
-    hashed, non-recoverable credential for that connection, which app it is, and when it was last used —
+    hashed, non-recoverable credential for that connection, which app it is, and when it was last used -
     never your password or any other secret. See "AI Assistant Access" below for what this lets an
     assistant do.</li>
   </ul>
@@ -80,32 +109,32 @@
 
   <h2>Third-party services we rely on</h2>
   <ul>
-    <li><strong>Supabase</strong> — our database, authentication, and backend hosting provider. Your
+    <li><strong>Supabase</strong> - our database, authentication, and backend hosting provider. Your
     account data is stored on Supabase's infrastructure, access-controlled so only your own signed-in
     session can read or write it.</li>
-    <li><strong>Resend</strong> — delivers account-related email (confirmation, password reset,
+    <li><strong>Resend</strong> - delivers account-related email (confirmation, password reset,
     security notifications) on our behalf.</li>
-    <li><strong>A PDF rendering service</strong> we operate — receives your resume's content
+    <li><strong>A PDF rendering service</strong> we operate - receives your resume's content
     momentarily, only when you click "Download PDF," purely to generate the file; it does not store
     that content afterward.</li>
-    <li><strong>GitHub</strong> — only if you enable GitHub Backup, and only to the specific repository
+    <li><strong>GitHub</strong> - only if you enable GitHub Backup, and only to the specific repository
     you configure. That connection, and everything pushed to it, is entirely under your control.</li>
-    <li><strong>Google / GitHub / LinkedIn</strong> — only if you choose to sign in using one of these
+    <li><strong>Google / GitHub / LinkedIn</strong> - only if you choose to sign in using one of these
     instead of a password. We receive only the basic profile info those providers share for sign-in.</li>
-    <li><strong>Claude Code, Codex, Claude Desktop, claude.ai, or ChatGPT</strong> — only if you
+    <li><strong>Claude Code, Codex, Claude Desktop, claude.ai, or ChatGPT</strong> - only if you
     connect one of these as an AI assistant. See "AI Assistant Access" below.</li>
   </ul>
 
   <h2>AI Assistant Access</h2>
   <p>DraftShelf can optionally be connected to an AI assistant (Claude Code, Codex, Claude Desktop,
   claude.ai, or ChatGPT) so it can read and edit your Library and Versions in conversation, on your
-  behalf. This is entirely opt-in — nothing is connected unless you explicitly authorize it.</p>
+  behalf. This is entirely opt-in - nothing is connected unless you explicitly authorize it.</p>
   <ul>
     <li>An assistant can only do what you approve when you click "Allow": read and write your resume
     Library and versions. It can never see or change your password, and it can never set up or read
-    your GitHub Backup token — those stay web-app-only, by design.</li>
+    your GitHub Backup token - those stay web-app-only, by design.</li>
     <li>Every action an assistant takes goes through the same access-controlled path and revision
-    checks a normal browser edit does — an assistant can never read or write another account's data.</li>
+    checks a normal browser edit does - an assistant can never read or write another account's data.</li>
     <li>The credential behind a connection is short-lived and renews automatically only while the
     connection is actively used; it is never stored anywhere in a form that could be read back as the
     original secret.</li>
@@ -129,7 +158,7 @@
   <h2>Security</h2>
   <p>Passwords are hashed by our authentication provider, never stored in plain text. Any stored
   third-party access token (like a GitHub PAT) is encrypted at rest and only decrypted server-side, on
-  demand. AI assistant connection credentials are hashed the same way passwords are — never stored in
+  demand. AI assistant connection credentials are hashed the same way passwords are - never stored in
   a recoverable form. All traffic to and from the app is encrypted (HTTPS). Database access is scoped
   so that each account can only ever read or write its own data.</p>
 
@@ -139,8 +168,20 @@
   <h2>Contact</h2>
   <p>Questions, requests, or concerns about your data: <a href="mailto:ariadaikalam1234@gmail.com">ariadaikalam1234@gmail.com</a></p>
 
-  <a class="back" href="index.html">&larr; Back to DraftShelf</a>
 </div>
+<script>
+(function(){
+  var btn = document.getElementById('btnThemeToggleStandalone');
+  function paintIcon(){ btn.innerHTML = document.documentElement.getAttribute('data-theme')==='dark' ? '&#9789;' : '&#9788;'; }
+  paintIcon();
+  btn.addEventListener('click', function(){
+    var next = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try{ localStorage.setItem('rf:ui:theme', JSON.stringify(next)); }catch(e){}
+    paintIcon();
+  });
+})();
+</script>
 <!-- Vercel Web Analytics / Speed Insights -- see index.html's own comment on this same pair
      of tags for why this is the plain-HTML form and why the paths are absolute. -->
 <script defer src="/_vercel/insights/script.js"></script>

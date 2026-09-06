@@ -3,28 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Terms of Service — DraftShelf</title>
+<title>Terms of Service - DraftShelf</title>
 <meta name="description" content="The terms governing your use of DraftShelf.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DraftShelf">
-<meta property="og:title" content="Terms of Service — DraftShelf">
+<meta property="og:title" content="Terms of Service - DraftShelf">
 <meta property="og:description" content="The terms governing your use of DraftShelf.">
-<meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
+<meta property="og:image" content="https://draftshelf.app/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
-<link rel="icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
-<link rel="shortcut icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
-<link rel="apple-touch-icon" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<meta name="twitter:image" content="https://draftshelf.app/assets/og-image.png">
+<link rel="icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="assets/draftshelf-icon.png?v=2">
 <style>
+  /* Theme-aware, matching the main app's own light/dark system (css/style.css) exactly --
+     see help.html's own comment on this same fix for why this page was light-only before
+     (a static page never wired into the app's theme infrastructure, not an intentional
+     "legal pages stay neutral" convention). */
   :root{
+    --accent:#B8860B; --accent-dark:#8B6508;
+  }
+  [data-theme="dark"]{
+    --bg:#0a0908; --surface:#17140d; --text:#FFFFFF; --text-muted:#b8ab8f;
+    --border:rgba(184,134,11,0.18);
+  }
+  [data-theme="light"]{
     --bg:#FBF9F5; --surface:#FFFFFF; --text:#1a1712; --text-muted:#6b6455;
-    --accent:#B8860B; --accent-dark:#8B6508; --border:rgba(184,134,11,0.32);
+    --border:rgba(184,134,11,0.32);
   }
   *{box-sizing:border-box;}
   body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Arial,sans-serif;line-height:1.6;}
   .wrap{max-width:1080px;margin:0 auto;padding:48px 32px 80px;}
-  .brand{display:flex;align-items:center;margin-bottom:8px;}
-  .brand img{height:26px;width:auto;flex:none;}
+  .page-top{display:flex;align-items:center;justify-content:space-between;}
+  .brand{display:flex;align-items:center;margin-bottom:8px;text-decoration:none;}
+  .brand img{height:26px;width:auto;flex:none;object-fit:contain;}
+  .brand img.logo-dark{display:none;}
+  [data-theme="dark"] .brand img.logo-light{display:none;}
+  [data-theme="dark"] .brand img.logo-dark{display:inline;}
+  .theme-toggle-standalone{background:none;border:1px solid var(--border);border-radius:20px;width:34px;height:34px;font-size:15px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;flex:none;}
+  .theme-toggle-standalone:hover{background:var(--surface);}
   h1{font-size:26px;margin:28px 0 4px;}
   .updated{font-size:13px;color:var(--text-muted);margin-bottom:32px;}
   h2{font-size:17px;margin:32px 0 10px;padding-top:8px;border-top:1px solid var(--border);}
@@ -33,19 +50,31 @@
   ul{padding-left:22px;}
   li{margin-bottom:6px;}
   a{color:var(--accent-dark);}
-  .back{display:inline-block;margin-top:40px;font-size:13px;}
   .muted{color:var(--text-muted);}
 </style>
+<script>
+// Pre-paint theme bootstrap -- see help.html's own identical copy for why this has to be an
+// early, synchronous inline script rather than something js/06_app.js handles.
+(function(){
+  var stored = null;
+  try{ stored = JSON.parse(localStorage.getItem('rf:ui:theme')); }catch(e){}
+  var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><img src="assets/draftshelf-logo.png" alt="DraftShelf"></div>
+  <div class="page-top">
+    <a class="brand" href="index.html" title="Back to DraftShelf"><img class="logo-light" src="assets/draftshelf-logo.png" alt="DraftShelf"><img class="logo-dark" src="assets/draftshelf-logo-dark.png" alt="DraftShelf"></a>
+    <button class="theme-toggle-standalone" id="btnThemeToggleStandalone" title="Toggle theme" aria-label="Toggle theme">&#9788;</button>
+  </div>
   <h1>Terms of Service</h1>
   <p class="updated">Last updated: August 20, 2026</p>
 
   <h2>Agreement</h2>
   <p>By using DraftShelf, you agree to these terms. DraftShelf is an independently operated, small-scale
-  resume-building tool, not a company — if anything here doesn't make sense for your situation, email
+  resume-building tool, not a company - if anything here doesn't make sense for your situation, email
   <a href="mailto:ariadaikalam1234@gmail.com">ariadaikalam1234@gmail.com</a> and we'll sort it out directly.</p>
 
   <h2>The service</h2>
@@ -63,7 +92,7 @@
   </ul>
 
   <h2>Your content</h2>
-  <p>Everything you enter into DraftShelf — your resume content, job descriptions, cover letters — remains
+  <p>Everything you enter into DraftShelf - your resume content, job descriptions, cover letters - remains
   yours. We claim no ownership over it. You're responsible for the accuracy of what you enter, and for
   only entering personal information (like a reference's contact details) that you have the right to
   include.</p>
@@ -75,7 +104,7 @@
 
   <h2>Optional third-party integrations</h2>
   <p>Signing in with Google, GitHub, or LinkedIn, and backing up to GitHub, are both entirely optional
-  and under your control — you choose whether to connect them and can disconnect at any time. We aren't
+  and under your control - you choose whether to connect them and can disconnect at any time. We aren't
   responsible for the availability or behavior of those third-party services themselves.</p>
 
   <h2>AI assistant access</h2>
@@ -87,7 +116,7 @@
   availability or behavior of the third-party AI assistant itself.</p>
 
   <h2>No warranty</h2>
-  <p>DraftShelf is provided "as is," on a best-effort basis, as a small personal-scale project — not a
+  <p>DraftShelf is provided "as is," on a best-effort basis, as a small personal-scale project - not a
   commercial product with guaranteed uptime or support response times. We make a genuine effort to keep
   it reliable and your data safe, but we can't promise the service will always be available or
   error-free.</p>
@@ -109,8 +138,20 @@
   <h2>Contact</h2>
   <p><a href="mailto:ariadaikalam1234@gmail.com">ariadaikalam1234@gmail.com</a></p>
 
-  <a class="back" href="index.html">&larr; Back to DraftShelf</a>
 </div>
+<script>
+(function(){
+  var btn = document.getElementById('btnThemeToggleStandalone');
+  function paintIcon(){ btn.innerHTML = document.documentElement.getAttribute('data-theme')==='dark' ? '&#9789;' : '&#9788;'; }
+  paintIcon();
+  btn.addEventListener('click', function(){
+    var next = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try{ localStorage.setItem('rf:ui:theme', JSON.stringify(next)); }catch(e){}
+    paintIcon();
+  });
+})();
+</script>
 <!-- Vercel Web Analytics / Speed Insights -- see index.html's own comment on this same pair
      of tags for why this is the plain-HTML form and why the paths are absolute. -->
 <script defer src="/_vercel/insights/script.js"></script>

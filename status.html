@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Status - DraftShelf</title>
+<meta name="description" content="Live status of DraftShelf's own servers.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DraftShelf">
+<meta property="og:title" content="Status - DraftShelf">
+<meta property="og:description" content="Live status of DraftShelf's own servers.">
+<link rel="icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="assets/draftshelf-icon.png?v=2">
+<style>
+  /* Same [data-theme] token system as help.html/privacy.html/terms.html/css/style.css. */
+  :root{ --accent:#B8860B; --accent-dark:#8B6508; }
+  [data-theme="dark"]{
+    --bg:#0a0908; --surface:#17140d; --surface-hover:#1f1a10; --text:#FFFFFF; --text-muted:#b8ab8f;
+    --border:rgba(184,134,11,0.18);
+    --ok:#7fae7a; --ok-bg:rgba(127,174,122,0.12); --down:#d9705a; --down-bg:rgba(217,112,90,0.12);
+  }
+  [data-theme="light"]{
+    --bg:#FBF9F5; --surface:#FFFFFF; --surface-hover:#F5F1E8; --text:#1a1712; --text-muted:#6b6455;
+    --border:rgba(184,134,11,0.32);
+    --ok:#4f8a49; --ok-bg:rgba(79,138,73,0.10); --down:#b8503a; --down-bg:rgba(184,80,58,0.10);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Arial,sans-serif;line-height:1.6;}
+  .wrap{max-width:640px;margin:0 auto;padding:48px 32px 80px;}
+  .page-top{display:flex;align-items:center;justify-content:space-between;}
+  .brand{display:flex;align-items:center;margin-bottom:8px;text-decoration:none;}
+  .brand img{height:26px;width:auto;flex:none;object-fit:contain;}
+  .brand img.logo-dark{display:none;}
+  [data-theme="dark"] .brand img.logo-light{display:none;}
+  [data-theme="dark"] .brand img.logo-dark{display:inline;}
+  .theme-toggle-standalone{background:none;border:1px solid var(--border);border-radius:20px;width:34px;height:34px;font-size:15px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;flex:none;}
+  .theme-toggle-standalone:hover{background:var(--surface-hover);}
+  h1{font-size:24px;margin:24px 0 20px;}
+
+  .checks{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+  .check{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:8px;padding:12px 16px;background:var(--surface);}
+  .check .dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--text-muted);}
+  .check.ok .dot{background:var(--ok);}
+  .check.down .dot{background:var(--down);}
+  .check-name{flex:1;font-size:13.5px;font-weight:600;}
+  .check-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;flex:none;color:var(--text-muted);}
+  .check.ok .check-badge{color:var(--ok);background:var(--ok-bg);}
+  .check.down .check-badge{color:var(--down);background:var(--down-bg);}
+
+  .btn-recheck{background:none;border:1px solid var(--border);color:var(--text);font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 14px;cursor:pointer;}
+  .btn-recheck:hover{background:var(--surface-hover);}
+  .btn-recheck:disabled{opacity:0.6;cursor:default;}
+
+</style>
+<script>
+(function(){
+  var stored = null;
+  try{ stored = JSON.parse(localStorage.getItem('rf:ui:theme')); }catch(e){}
+  var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-top">
+    <a class="brand" href="index.html" title="Back to DraftShelf"><img class="logo-light" src="assets/draftshelf-logo.png" alt="DraftShelf"><img class="logo-dark" src="assets/draftshelf-logo-dark.png" alt="DraftShelf"></a>
+    <button class="theme-toggle-standalone" id="btnThemeToggleStandalone" title="Toggle theme" aria-label="Toggle theme">&#9788;</button>
+  </div>
+  <h1>Status</h1>
+
+  <div class="checks" id="checksList"></div>
+  <button class="btn-recheck" id="btnRecheck">Recheck</button>
+</div>
+<script>
+(function(){
+  // Only checks that can actually be confirmed from a plain browser request are listed here --
+  // a check that can only fail with "can't tell" (blocked by CORS, no way to distinguish that
+  // from the service being down) is left out entirely rather than shown as a permanent, useless
+  // "unknown" row. "ok" for most of these just means "the server responded at all" -- a
+  // genuinely down service doesn't return a real HTTP status, it fails to connect.
+  var SUPABASE_URL = 'https://aenpxggiazgwoidjikii.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_Zlvw6QuEhRLqmN4EXXgeKg_fneHO7sM'; // same public, safe-to-embed key js/00_supabase.js already ships client-side
+
+  var CHECKS = [
+    { name: 'Sign-in & data', run: function(){
+        return fetch(SUPABASE_URL + '/auth/v1/settings', { headers: { apikey: SUPABASE_ANON_KEY } }).then(function(r){ return r.ok; });
+    }},
+    // One row, not two -- PDF export itself works as long as EITHER host answers (that's the
+    // whole point of the fallback host existing), so showing them separately would make a
+    // perfectly normal "primary asleep, backup covering it" moment look like a real problem.
+    { name: 'PDF export', run: function(){
+        return Promise.all([
+          fetch('https://ariadaikalam-swat-plant-sender.hf.space/health').then(function(r){ return r.ok; }).catch(function(){ return false; }),
+          fetch('https://resume-forge-k0qt.onrender.com/health').then(function(r){ return r.ok; }).catch(function(){ return false; })
+        ]).then(function(results){ return results[0] || results[1]; });
+    }},
+    { name: 'AI assistant integration', run: function(){
+        return fetch(SUPABASE_URL + '/functions/v1/mcp-api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function(r){ return r.status===401; });
+    }},
+    { name: 'GitHub backup', run: function(){
+        return fetch(SUPABASE_URL + '/functions/v1/github-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function(r){ return r.status===401; });
+    }}
+  ];
+
+  var listEl = document.getElementById('checksList');
+  var btn = document.getElementById('btnRecheck');
+
+  function runAll(){
+    btn.disabled = true;
+    listEl.innerHTML = '';
+    var rows = CHECKS.map(function(check){
+      var row = document.createElement('div');
+      row.className = 'check';
+      row.innerHTML = '<div class="dot"></div><div class="check-name">' + check.name + '</div><div class="check-badge">Checking</div>';
+      listEl.appendChild(row);
+      return { check: check, row: row };
+    });
+
+    var pending = rows.length;
+    rows.forEach(function(entry){
+      Promise.resolve().then(entry.check.run).catch(function(){ return false; }).then(function(ok){
+        entry.row.className = 'check ' + (ok ? 'ok' : 'down');
+        entry.row.querySelector('.check-badge').textContent = ok ? 'Working' : 'Not working';
+        pending--;
+        if(pending===0) btn.disabled = false;
+      });
+    });
+  }
+
+  btn.addEventListener('click', runAll);
+  runAll();
+
+  var themeBtn = document.getElementById('btnThemeToggleStandalone');
+  function paintIcon(){ themeBtn.innerHTML = document.documentElement.getAttribute('data-theme')==='dark' ? '&#9789;' : '&#9788;'; }
+  paintIcon();
+  themeBtn.addEventListener('click', function(){
+    var next = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try{ localStorage.setItem('rf:ui:theme', JSON.stringify(next)); }catch(e){}
+    paintIcon();
+  });
+})();
+</script>
+<!-- Vercel Web Analytics / Speed Insights -- see index.html's own comment on this same pair
+     of tags for why this is the plain-HTML form and why the paths are absolute. -->
+<script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
