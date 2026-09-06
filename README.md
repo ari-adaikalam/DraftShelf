@@ -32,7 +32,7 @@ DraftShelf is a resume builder built around one idea: your work history doesn't 
 <img src="assets/help/04-editor.png" width="800"/>
 
 ### Connect an AI Assistant
-<img src="assets/help/07-ai-assistant.png" width="800"/>
+<img src="assets/help/07-ai-assistant-dark.png" width="800"/>
 
 ---
 
