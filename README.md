@@ -17,7 +17,7 @@ DraftShelf is a resume builder built around one idea: your work history doesn't 
 
 ## Live Demo
 
-**🔗 Live App**: [ariharasudhan.com/draftshelf](https://ariharasudhan.com/draftshelf/)
+**🔗 Live App**: [Draftshelf](https://draftshelf.app)
 > Free to use, permanently. Sign up with email/password, Google, or GitHub - there's no local-only or guest mode, since a real account is what makes the Library/Version sync (and the two-device conflict handling below) possible.
 
 ## Screenshots
