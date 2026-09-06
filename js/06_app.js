@@ -93,6 +93,8 @@ const ICONS = {
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
   menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
   help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+  status:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  features:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
   // Real brand marks (Google's own 4-color "G", GitHub's own Octocat silhouette) -- an
   // explicit, deliberate exception to this file's otherwise-uniform stroke-icon style, since a
   // recolored/outline version of either would be unrecognizable as "sign in with Google/GitHub".
@@ -588,7 +590,7 @@ function renderAuthScreen(){
   // (min-height:100%); .auth-legal-links is its last child with margin-top:auto, the standard
   // "sticky footer" pattern -- pinned to the bottom of the viewport when content is short,
   // pushed below it (never overlapping) when content is tall enough to need scrolling.
-  const legalLinks = `<div class="auth-legal-links"><a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> · <a href="help.html" target="_blank" rel="noopener">Help &amp; FAQ</a></div>`;
+  const legalLinks = `<div class="auth-legal-links"><a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Service</a> · <a href="help.html">Help &amp; FAQ</a> · <a href="features.html">Features</a></div>`;
   if(AUTH_MODE==='landing'){
     // .auth-hero-wrap (flex:1, css/style.css) fills the space above the footer and centers
     // the single-fold hero content vertically inside it.
@@ -2197,7 +2199,7 @@ async function resolveConflict(choice){
   const { kind, serverRow } = syncConflict;
   if(choice==='reload-remote'){
     if(kind==='library'){ LIBRARY = migrateTagOptions(serverRow.data); LIBRARY_REVISION = serverRow.revision; renderLibrary(); }
-    else { CURRENT_VERSION = serverRow.data; VERSION_REVISIONS[serverRow.id] = serverRow.revision; renderEditor(); }
+    else { CURRENT_VERSION = ensureVersionSelectionShape(serverRow.data); VERSION_REVISIONS[serverRow.id] = serverRow.revision; renderEditor(); }
     syncConflict = null; renderConflictBanner();
   } else if(choice==='keep-local'){
     syncConflict = null; renderConflictBanner();
@@ -2292,8 +2294,9 @@ async function createNewVersion(){
 async function duplicateVersion(id){
   const orig = await DB.getVersion(id);
   if(!orig) return;
-  const copy = JSON.parse(JSON.stringify(orig.data));
+  let copy = JSON.parse(JSON.stringify(orig.data));
   copy.id = uid(); copy.name = orig.data.name+' copy'; copy.main=false; copy.createdAt=Date.now(); copy.updatedAt=Date.now();
+  copy = ensureVersionSelectionShape(copy);
   const created = await DB.createVersion(copy);
   if(!created){ toast('Could not duplicate version'); return; }
   VERSION_REVISIONS[copy.id] = created.revision;
@@ -2429,7 +2432,8 @@ const AI_RESUME_IMPORT_PROMPT = `Convert the resume I'm giving you into JSON mat
   "library": {
     "meta": { "name": "", "phone": "", "email": "", "location": "", "linkedin": "", "github": "", "portfolio": "" },
     "experience": [
-      { "company": "", "role": "", "location": "", "dates": "", "tag": "", "bullets": [ { "text": "" } ] }
+      { "company": "", "role": "", "location": "", "dates": "", "tag": "", "bullets": [ { "text": "" } ] },
+      { "company": "", "positions": [ { "role": "", "dates": "", "location": "", "bullets": [ { "text": "" } ] } ] }
     ],
     "projects": [
       { "title": "", "dates": "", "bullets": [ { "text": "" } ] }
@@ -2448,19 +2452,27 @@ const AI_RESUME_IMPORT_PROMPT = `Convert the resume I'm giving you into JSON mat
     ],
     "customSections": [
       { "heading": "", "subheading": "", "dates": "", "location": "", "contentType": "bullets", "bullets": [ { "text": "" } ], "text": "" }
+    ],
+    "publications": [
+      { "title": "", "authors": "", "venue": "", "date": "", "url": "" }
+    ],
+    "certifications": [
+      { "name": "", "issuer": "", "date": "", "credentialId": "", "url": "" }
     ]
   }
 }
 
 Rules:
 - meta: pull name/phone/email/location from the header. linkedin/github/portfolio should be full URLs (e.g. "https://linkedin.com/in/x"), not just a display label -- leave blank if not present.
-- experience: one entry per job. "tag" is an optional short note like "Internship" or "Contract" -- leave it "" if not applicable. Split each bullet point into its own object in "bullets".
+- experience: one entry per company. If the resume shows multiple roles held at the SAME company over time (e.g. promoted from Analyst to Senior Analyst), use the second shape above -- one entry with a "positions" array, one object per role, each with its own role/dates/location/bullets, instead of creating several separate experience entries for the same company. Every other experience entry (the normal case, one role per company) uses the first shape exactly as before. "tag" is an optional short note like "Internship" or "Contract" -- leave it "" if not applicable. Split each bullet point into its own object in "bullets".
 - projects: same bullet-splitting as experience.
 - education: one entry per degree/school.
 - skills: group related skills into categories -- "label" is the category name (e.g. "Languages", "Tools"), "text" is a comma-separated list of the skills in it. One object per category.
 - summaries: if there's a professional summary/objective paragraph, put its exact text as one entry. If there isn't one, use an empty array.
 - references: only include if the resume actually lists references with contact info. Otherwise use an empty array.
-- customSections: use this for anything that doesn't fit the above (certifications, publications, awards, volunteering, etc.) -- one object per section. Set "contentType" to "bullets" and use the "bullets" array for a bulleted list, or "contentType" to "paragraph" and put the text in "text" for prose. Leave "subheading"/"dates"/"location" as "" if not applicable.
+- publications: one object per paper/article, if the resume lists any. "authors"/"venue" (journal or conference) are optional -- leave "" if not stated. "url" should be a full URL if given, otherwise "".
+- certifications: one object per certification, if the resume lists any. "credentialId"/"url" are optional -- leave "" if not stated.
+- customSections: use this for anything that doesn't fit any of the above (awards, volunteering, patents, talks, etc.) -- one object per section. Set "contentType" to "bullets" and use the "bullets" array for a bulleted list, or "contentType" to "paragraph" and put the text in "text" for prose. Leave "subheading"/"dates"/"location" as "" if not applicable.
 - Leave any section as an empty array [] if the resume has nothing for it -- don't invent content.
 - Do not include "id" or "tags" fields anywhere -- leave them out entirely.
 - Keep bullet text as close to the original wording as possible -- don't rewrite or embellish it.`;
@@ -2708,7 +2720,7 @@ async function importSelectedAsStandalone(payload, ids){
    rendering + event wiring, same split every other pure-engine/DOM-layer pair in this app
    already has (e.g. 02_paginate.js/paginate() in 06_app.js). ===== */
 var IMPORT_REVIEW = null; // {payload, reviewState, metaChoices, includeMap} | null
-const IMPORT_REVIEW_KIND_LABELS = {experience:'Experience', projects:'Projects', education:'Education', skills:'Skills', skillGroups:'Skill Sets', summaries:'Summaries', references:'References', customSections:'Custom Sections'};
+const IMPORT_REVIEW_KIND_LABELS = {experience:'Experience', projects:'Projects', education:'Education', skills:'Skills', skillGroups:'Skill Sets', summaries:'Summaries', references:'References', customSections:'Custom Sections', publications:'Publications', certifications:'Certifications'};
 const IMPORT_REVIEW_META_LABELS = {name:'Full name', phone:'Phone', email:'Email', location:'Location', linkedin:'LinkedIn', github:'GitHub', portfolio:'Portfolio'};
 function importReviewEntryLabel(kind, entry){
   // summaries matches on the whole `text` field (see IMPORT_REVIEW_MATCH_FIELD's own comment)
@@ -3009,6 +3021,8 @@ function entryLabel(kind, e){
   if(kind==='summaries') return (e.text||'').slice(0,40) || '(untitled summary)';
   if(kind==='references') return e.name;
   if(kind==='customSections') return e.heading;
+  if(kind==='publications') return e.title;
+  if(kind==='certifications') return e.name;
   return '';
 }
 function metaFormHtml(){
@@ -3029,9 +3043,45 @@ function metaFormHtml(){
     </div>
   </div>`;
 }
-function bulletRowHtml(kind, entryIndex, entryId, b, bi){
-  const path = `${kind}.${entryIndex}.bullets.${bi}.text`;
+// `pathPrefix` lets a position's own bullets (path like
+// "experience.0.positions.1.bullets.2.text") reuse this exact same row markup as a flat
+// entry's bullets ("experience.0.bullets.2.text") -- only the data-path differs, every
+// data-action attribute below still just carries kind/entryId/bulletId(+positionId), since
+// that's all the reducers actually need (see getBulletsArray()/setBulletsArray() in
+// js/03_model.js). `positionId` (optional) is threaded onto every button here so
+// applyLibraryClickAction() routes the mutation into the right bullets array.
+function bulletRowHtml(kind, pathPrefix, entryId, b, positionId){
+  const path = `${pathPrefix}.text`;
   const usage = bulletUsageVersions(kind, entryId, b.id);
+  const posAttr = positionId ? ` data-position-id="${esc(positionId)}"` : '';
+  // One level of sub-bullets (see newSubBullet() in js/03_model.js) -- rendered indented, each
+  // with its own remove button; "+ Add sub-bullet" always available per bullet, not gated
+  // behind any mode switch, since a sub-bullet is just another optional layer on any bullet.
+  // Move up/down, on request -- reorders within entry.bullets/position.bullets (a real,
+  // meaningful change to print order, not cosmetic; see libMoveBullet()'s own comment in
+  // js/03_model.js), same up/down chevron pattern every other reorderable list in this app
+  // already uses. Sub-bullets get their own independent move pair, reordering within their
+  // own parent's children array.
+  const moveBulletBtns = `<span class="move-btns">
+    <button type="button" class="btn btn-ghost btn-icon" data-action="move-bullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}" data-dir="up"${posAttr} title="Move up">${ICONS.chevronUp}</button>
+    <button type="button" class="btn btn-ghost btn-icon" data-action="move-bullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}" data-dir="down"${posAttr} title="Move down">${ICONS.chevronDown}</button>
+  </span>`;
+  const childrenHtml = (b.children||[]).map((c,ci)=>{
+    const cpath = `${pathPrefix}.children.${ci}.text`;
+    return `<div class="bullet-row" style="margin-left:24px;">
+      <div class="bullet-row-main">
+        <textarea data-path="${cpath}" rows="1">${esc(c.text)}</textarea>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+        ${tagChipInputHtml('library', `${pathPrefix}.children.${ci}.tags`, c.tags)}
+        <span class="move-btns">
+          <button type="button" class="btn btn-ghost btn-icon" data-action="move-subbullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}" data-cid="${esc(c.id)}" data-dir="up"${posAttr} title="Move up">${ICONS.chevronUp}</button>
+          <button type="button" class="btn btn-ghost btn-icon" data-action="move-subbullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}" data-cid="${esc(c.id)}" data-dir="down"${posAttr} title="Move down">${ICONS.chevronDown}</button>
+        </span>
+        <button class="btn btn-danger btn-icon" data-action="remove-subbullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}" data-cid="${esc(c.id)}"${posAttr}>${ICONS.close}</button>
+      </div>
+    </div>`;
+  }).join('');
   return `<div class="bullet-row">
     <div class="bullet-row-main">
       <textarea data-path="${path}" rows="2">${esc(b.text)}</textarea>
@@ -3041,11 +3091,13 @@ function bulletRowHtml(kind, entryIndex, entryId, b, bi){
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-      ${tagChipInputHtml('library', `${kind}.${entryIndex}.bullets.${bi}.tags`, b.tags)}
+      ${tagChipInputHtml('library', `${pathPrefix}.tags`, b.tags)}
       ${hasMetric(b.text)?'<span class="metric-ok">has metric</span>':'<span class="metric-flag">no metric</span>'}
-      <button class="btn btn-danger btn-icon" data-action="remove-bullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}">${ICONS.close}</button>
+      ${moveBulletBtns}
+      <button class="btn btn-ghost btn-sm" data-action="add-subbullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}"${posAttr}>+ Sub-bullet</button>
+      <button class="btn btn-danger btn-icon" data-action="remove-bullet" data-kind="${kind}" data-id="${esc(entryId)}" data-bid="${esc(b.id)}"${posAttr}>${ICONS.close}</button>
     </div>
-  </div>`;
+  </div>${childrenHtml}`;
 }
 // Empty by default -- filled in with a small Save button, via direct DOM manipulation (not a
 // re-render, which would steal focus mid-typing), the moment its field goes dirty while used
@@ -3067,6 +3119,61 @@ function collapsibleEntryCardHtml(key, summaryLabel, usageLine, extraSummaryHtml
     <summary><span>${summaryLabel}</span>${usageLine}${extraSummaryHtml}</summary>
     ${bodyHtml}
   </details>`;
+}
+// One position/sub-entry card, for a positioned Experience or Custom Section entry -- the
+// shared "role"/"subheading" naming differs per kind (see newPosition() in js/03_model.js),
+// everything else (dates/location/tags/bullets, plus contentType/paragraph text for
+// customSections) is the exact same shape a flat entry already has, just addressed one level
+// down via `${kind}.${entryIndex}.positions.${pi}`. Every field here goes through the same
+// fieldSaveSlotHtml()/Save-button/impact-dialog mechanism a flat entry's fields already do --
+// see fieldUsageForPath()'s own `positions` branch above.
+function positionCardHtml(kind, e, entryIndex, p, pi, isOpen){
+  const posPath = `${kind}.${entryIndex}.positions.${pi}`;
+  // customSections positions get a real Organization field alongside Subheading, on request --
+  // unlike Experience (whose Company lives once at the entry level, since every position under
+  // one entry is definitionally at the same company), a custom section's own sub-entries can
+  // genuinely belong to different organizations (e.g. certifications from different issuing
+  // bodies under one "Certifications" heading), so it's per-position here. Mirrors Experience's
+  // own Company+Role visual pairing: Organization+Location on one row (like Company+Location),
+  // Subheading (the title/role-equivalent)+Dates on the next (like Role+Dates) -- see
+  // buildCustomSectionPositionNode()/citationLinkParagraph-adjacent DOCX branch for the matching
+  // print order.
+  const nameFieldsHtml = kind==='experience'
+    ? `<div class="field"><label>Role</label><input type="text" data-path="${posPath}.role" value="${esc(p.role)}">${fieldSaveSlotHtml(posPath+'.role')}</div>`
+    : `<div class="field-row">
+        <div class="field"><label>Organization (optional)</label><input type="text" data-path="${posPath}.org" value="${esc(p.org||'')}">${fieldSaveSlotHtml(posPath+'.org')}</div>
+        <div class="field"><label>Subheading (optional)</label><input type="text" placeholder="e.g. role or title" data-path="${posPath}.subheading" value="${esc(p.subheading||'')}">${fieldSaveSlotHtml(posPath+'.subheading')}</div>
+      </div>`;
+  const contentTypeField = kind==='customSections'
+    ? `<div class="field"><label>Content type</label><select data-path="${posPath}.contentType">
+        <option value="bullets" ${p.contentType==='bullets'?'selected':''}>Bullets</option>
+        <option value="paragraph" ${p.contentType==='paragraph'?'selected':''}>Paragraph</option>
+      </select></div>` : '';
+  const showBullets = kind==='experience' || p.contentType!=='paragraph';
+  const contentHtml = showBullets ? `
+    <div style="font-size:11px;color:var(--text-muted);margin:6px 0 4px;">Bullets</div>
+    ${(p.bullets||[]).map((b,bi)=>bulletRowHtml(kind, `${posPath}.bullets.${bi}`, e.id, b, p.id)).join('')}
+    <button class="btn btn-ghost btn-sm" data-action="add-bullet" data-kind="${kind}" data-id="${esc(e.id)}" data-position-id="${esc(p.id)}">+ Add bullet</button>
+  ` : `<div class="field"><label>Text (use **word** for inline bold)</label><textarea data-path="${posPath}.text" rows="3">${esc(p.text||'')}</textarea>${fieldSaveSlotHtml(posPath+'.text')}</div>`;
+  const moveButtons = `<span class="move-btns">
+    <button type="button" class="btn btn-ghost btn-icon" data-action="move-position" data-kind="${kind}" data-id="${esc(e.id)}" data-position-id="${esc(p.id)}" data-dir="up" title="Move up">&uarr;</button>
+    <button type="button" class="btn btn-ghost btn-icon" data-action="move-position" data-kind="${kind}" data-id="${esc(e.id)}" data-position-id="${esc(p.id)}" data-dir="down" title="Move down">&darr;</button>
+  </span>`;
+  const summaryLabel = kind==='experience'
+    ? esc(p.role||'(untitled position)')
+    : esc(`${p.org?p.org+' - ':''}${p.subheading||'(untitled position)'}`);
+  const body = `<div class="entry position-entry">
+    <div class="entry-top">${moveButtons}<button class="btn btn-danger btn-icon" data-action="remove-position" data-kind="${kind}" data-id="${esc(e.id)}" data-position-id="${esc(p.id)}">${ICONS.close}</button></div>
+    ${nameFieldsHtml}
+    <div class="field-row">
+      <div class="field"><label>Dates</label><input type="text" data-path="${posPath}.dates" value="${esc(p.dates)}">${fieldSaveSlotHtml(posPath+'.dates')}</div>
+      <div class="field"><label>Location (optional)</label><input type="text" data-path="${posPath}.location" value="${esc(p.location||'')}">${fieldSaveSlotHtml(posPath+'.location')}</div>
+    </div>
+    ${contentTypeField}
+    <div class="field"><label>Tags</label>${tagChipInputHtml('library', `${posPath}.tags`, p.tags)}</div>
+    ${contentHtml}
+  </div>`;
+  return collapsibleEntryCardHtml(`${kind}:${e.id}:pos:${p.id}`, summaryLabel, '', '', body, isOpen);
 }
 function entryCardHtml(kind, e, i, isOpen){
   // esc() on every id below -- ids are always safe (uid()-generated) EXCEPT after "Replace
@@ -3105,20 +3212,35 @@ function entryCardHtml(kind, e, i, isOpen){
     // so an entry's use/identity is visible without opening it; the expanded body below is
     // completely unchanged from the pre-collapsible markup. Plain hyphen, not an em dash --
     // see "Remove the em dashes" below.
-    const summaryLabel = `${esc(e.company||'(untitled)')}${e.role?' - '+esc(e.role):''}`;
-    const body = `<div class="entry">${rm}
-      <div class="field-row">
-        <div class="field"><label>Company</label><input type="text" data-path="experience.${i}.company" value="${esc(e.company)}">${fieldSaveSlotHtml(`experience.${i}.company`)}</div>
-        <div class="field"><label>Note (optional)</label><input type="text" placeholder="e.g. Internship, Contract" data-path="experience.${i}.tag" value="${esc(e.tag)}">${fieldSaveSlotHtml(`experience.${i}.tag`)}</div>
-      </div>
+    const hasPositions = e.positions && e.positions.length;
+    // Multiple positions/sub-entries under one shared company -- e.g. three roles held over
+    // time at the same organization ("Engineering Experience"). "+ Add multiple positions"
+    // carries today's existing role/dates/location/bullets into a real first position
+    // (libConvertEntryToPositions(), js/03_model.js) rather than starting it blank; once
+    // `positions` exists, those flat fields are simply unused (never blanked -- see that
+    // reducer's own comment) and this card switches to rendering position cards instead.
+    const roleAreaHtml = hasPositions ? `
+      <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Positions (${e.positions.length})</div>
+      ${e.positions.map((p,pi)=>positionCardHtml('experience', e, i, p, pi, isOpen)).join('')}
+      <button class="btn btn-ghost btn-sm" data-action="add-position" data-kind="experience" data-id="${esc(e.id)}">+ Add another position</button>
+    ` : `
       <div class="field-row">
         <div class="field"><label>Role</label><input type="text" data-path="experience.${i}.role" value="${esc(e.role)}">${fieldSaveSlotHtml(`experience.${i}.role`)}</div>
         <div class="field"><label>Dates</label><input type="text" data-path="experience.${i}.dates" value="${esc(e.dates)}">${fieldSaveSlotHtml(`experience.${i}.dates`)}</div>
       </div>
       <div class="field"><label>Location</label><input type="text" data-path="experience.${i}.location" value="${esc(e.location)}">${fieldSaveSlotHtml(`experience.${i}.location`)}</div>
       <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Bullets</div>
-      ${e.bullets.map((b,bi)=>bulletRowHtml('experience',i,e.id,b,bi)).join('')}
+      ${e.bullets.map((b,bi)=>bulletRowHtml('experience',`experience.${i}.bullets.${bi}`,e.id,b)).join('')}
       <button class="btn btn-ghost btn-sm" data-action="add-bullet" data-kind="experience" data-id="${esc(e.id)}">+ Add bullet</button>
+      <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" data-action="convert-to-positions" data-kind="experience" data-id="${esc(e.id)}">+ Add multiple positions (e.g. several roles at this company)</button></div>
+    `;
+    const summaryLabel = `${esc(e.company||'(untitled)')}${!hasPositions && e.role?' - '+esc(e.role):''}`;
+    const body = `<div class="entry">${rm}
+      <div class="field-row">
+        <div class="field"><label>Company</label><input type="text" data-path="experience.${i}.company" value="${esc(e.company)}">${fieldSaveSlotHtml(`experience.${i}.company`)}</div>
+        <div class="field"><label>Note (optional)</label><input type="text" placeholder="e.g. Internship, Contract" data-path="experience.${i}.tag" value="${esc(e.tag)}">${fieldSaveSlotHtml(`experience.${i}.tag`)}</div>
+      </div>
+      ${roleAreaHtml}
     </div>`;
     return collapsibleEntryCardHtml('experience:'+e.id, summaryLabel, usageLine, '', body, isOpen);
   }
@@ -3130,7 +3252,7 @@ function entryCardHtml(kind, e, i, isOpen){
         <div class="field"><label>Dates</label><input type="text" data-path="projects.${i}.dates" value="${esc(e.dates)}">${fieldSaveSlotHtml(`projects.${i}.dates`)}</div>
       </div>
       <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Bullets</div>
-      ${e.bullets.map((b,bi)=>bulletRowHtml('projects',i,e.id,b,bi)).join('')}
+      ${e.bullets.map((b,bi)=>bulletRowHtml('projects',`projects.${i}.bullets.${bi}`,e.id,b)).join('')}
       <button class="btn btn-ghost btn-sm" data-action="add-bullet" data-kind="projects" data-id="${esc(e.id)}">+ Add bullet</button>
     </div>`;
     return collapsibleEntryCardHtml('projects:'+e.id, summaryLabel, usageLine, '', body, isOpen);
@@ -3191,25 +3313,39 @@ function entryCardHtml(kind, e, i, isOpen){
     return collapsibleEntryCardHtml('references:'+e.id, summaryLabel, usageLine, '', body, isOpen);
   }
   if(kind==='customSections'){
-    const bulletsBlock = e.contentType==='bullets' ? `
+    const hasPositions = e.positions && e.positions.length;
+    const bulletsBlock = (!hasPositions && e.contentType==='bullets') ? `
       <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Bullets</div>
-      ${e.bullets.map((b,bi)=>bulletRowHtml('customSections',i,e.id,b,bi)).join('')}
+      ${e.bullets.map((b,bi)=>bulletRowHtml('customSections',`customSections.${i}.bullets.${bi}`,e.id,b)).join('')}
       <button class="btn btn-ghost btn-sm" data-action="add-bullet" data-kind="customSections" data-id="${esc(e.id)}">+ Add bullet</button>` : '';
-    const paragraphBlock = e.contentType==='paragraph' ? `
+    const paragraphBlock = (!hasPositions && e.contentType==='paragraph') ? `
       <div class="field"><label>Text (use **word** for inline bold)</label><textarea data-path="customSections.${i}.text" rows="3">${esc(e.text)}</textarea>${fieldSaveSlotHtml(`customSections.${i}.text`)}</div>` : '';
-    const summaryLabel = `${esc(e.heading||'(untitled)')}${e.subheading?' - '+esc(e.subheading):''}`;
-    const body = `<div class="entry">${rm}
-      <div class="field"><label>Heading</label><input type="text" data-path="customSections.${i}.heading" value="${esc(e.heading)}">${fieldSaveSlotHtml(`customSections.${i}.heading`)}</div>
+    // Multiple sub-entries under one shared heading (e.g. several certifications from the
+    // same body, each with its own date/bullets) -- same convert-in-place pattern Experience's
+    // own positions feature uses, carrying today's flat subheading/dates/location/content into
+    // a real first position instead of starting it blank.
+    const contentTypeSelect = hasPositions ? '' : `<div class="field"><label>Content type</label><select data-path="customSections.${i}.contentType">
+        <option value="bullets" ${e.contentType==='bullets'?'selected':''}>Bullets</option>
+        <option value="paragraph" ${e.contentType==='paragraph'?'selected':''}>Paragraph</option>
+      </select></div>`;
+    const subEntryAreaHtml = hasPositions ? `
+      <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Sub-entries (${e.positions.length})</div>
+      ${e.positions.map((p,pi)=>positionCardHtml('customSections', e, i, p, pi, isOpen)).join('')}
+      <button class="btn btn-ghost btn-sm" data-action="add-position" data-kind="customSections" data-id="${esc(e.id)}">+ Add another sub-entry</button>
+    ` : `
       <div class="field-row">
         <div class="field"><label>Subheading (optional)</label><input type="text" placeholder="e.g. issuing organization" data-path="customSections.${i}.subheading" value="${esc(e.subheading||'')}">${fieldSaveSlotHtml(`customSections.${i}.subheading`)}</div>
         <div class="field"><label>Location (optional)</label><input type="text" data-path="customSections.${i}.location" value="${esc(e.location||'')}">${fieldSaveSlotHtml(`customSections.${i}.location`)}</div>
       </div>
       <div class="field"><label>Dates (optional)</label><input type="text" data-path="customSections.${i}.dates" value="${esc(e.dates||'')}">${fieldSaveSlotHtml(`customSections.${i}.dates`)}</div>
-      <div class="field"><label>Content type</label><select data-path="customSections.${i}.contentType">
-        <option value="bullets" ${e.contentType==='bullets'?'selected':''}>Bullets</option>
-        <option value="paragraph" ${e.contentType==='paragraph'?'selected':''}>Paragraph</option>
-      </select></div>
+      ${contentTypeSelect}
       ${bulletsBlock}${paragraphBlock}
+      <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" data-action="convert-to-positions" data-kind="customSections" data-id="${esc(e.id)}">+ Add multiple sub-entries under this heading</button></div>
+    `;
+    const summaryLabel = `${esc(e.heading||'(untitled)')}${!hasPositions && e.subheading?' - '+esc(e.subheading):''}`;
+    const body = `<div class="entry">${rm}
+      <div class="field"><label>Heading</label><input type="text" data-path="customSections.${i}.heading" value="${esc(e.heading)}">${fieldSaveSlotHtml(`customSections.${i}.heading`)}</div>
+      ${subEntryAreaHtml}
     </div>`;
     return collapsibleEntryCardHtml('customSections:'+e.id, summaryLabel, usageLine, '', body, isOpen);
   }
@@ -3217,6 +3353,45 @@ function entryCardHtml(kind, e, i, isOpen){
     return `<div class="entry">${rm}
       <div class="field"><label>Tag label</label><input type="text" data-path="tagOptions.${i}.label" value="${esc(e.label)}"></div>
     </div>`;
+  }
+  // Publications/Certifications -- real, first-class kinds (peers of experience/projects),
+  // rendered with structured citation fields rather than a plain bullet. Both carry an
+  // entry-level tags[] field (fill-by-tag matches the whole citation), and publications
+  // additionally allows optional bullets for a short abstract/description note.
+  if(kind==='publications'){
+    const summaryLabel = esc(e.title||'(untitled publication)');
+    const body = `<div class="entry">${rm}
+      <div class="field"><label>Title</label><input type="text" data-path="publications.${i}.title" value="${esc(e.title)}">${fieldSaveSlotHtml(`publications.${i}.title`)}</div>
+      <div class="field-row">
+        <div class="field"><label>Authors</label><input type="text" data-path="publications.${i}.authors" value="${esc(e.authors||'')}">${fieldSaveSlotHtml(`publications.${i}.authors`)}</div>
+        <div class="field"><label>Venue</label><input type="text" placeholder="Journal / conference" data-path="publications.${i}.venue" value="${esc(e.venue||'')}">${fieldSaveSlotHtml(`publications.${i}.venue`)}</div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Date</label><input type="text" data-path="publications.${i}.date" value="${esc(e.date||'')}">${fieldSaveSlotHtml(`publications.${i}.date`)}</div>
+        <div class="field"><label>URL (optional)</label><input type="text" data-path="publications.${i}.url" value="${esc(e.url||'')}">${fieldSaveSlotHtml(`publications.${i}.url`)}</div>
+      </div>
+      <div class="field"><label>Tags</label>${tagChipInputHtml('library', `publications.${i}.tags`, e.tags)}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin:8px 0 4px;">Bullets (optional -- a short abstract/description note)</div>
+      ${(e.bullets||[]).map((b,bi)=>bulletRowHtml('publications',`publications.${i}.bullets.${bi}`,e.id,b)).join('')}
+      <button class="btn btn-ghost btn-sm" data-action="add-bullet" data-kind="publications" data-id="${esc(e.id)}">+ Add bullet</button>
+    </div>`;
+    return collapsibleEntryCardHtml('publications:'+e.id, summaryLabel, usageLine, bulletTagBadgesHtml(e.tags), body, isOpen);
+  }
+  if(kind==='certifications'){
+    const summaryLabel = `${esc(e.name||'(untitled certification)')}${e.issuer?' - '+esc(e.issuer):''}`;
+    const body = `<div class="entry">${rm}
+      <div class="field-row">
+        <div class="field"><label>Name</label><input type="text" data-path="certifications.${i}.name" value="${esc(e.name)}">${fieldSaveSlotHtml(`certifications.${i}.name`)}</div>
+        <div class="field"><label>Issuer</label><input type="text" data-path="certifications.${i}.issuer" value="${esc(e.issuer||'')}">${fieldSaveSlotHtml(`certifications.${i}.issuer`)}</div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Date</label><input type="text" data-path="certifications.${i}.date" value="${esc(e.date||'')}">${fieldSaveSlotHtml(`certifications.${i}.date`)}</div>
+        <div class="field"><label>Credential ID (optional)</label><input type="text" data-path="certifications.${i}.credentialId" value="${esc(e.credentialId||'')}">${fieldSaveSlotHtml(`certifications.${i}.credentialId`)}</div>
+      </div>
+      <div class="field"><label>URL (optional)</label><input type="text" data-path="certifications.${i}.url" value="${esc(e.url||'')}">${fieldSaveSlotHtml(`certifications.${i}.url`)}</div>
+      <div class="field"><label>Tags</label>${tagChipInputHtml('library', `certifications.${i}.tags`, e.tags)}</div>
+    </div>`;
+    return collapsibleEntryCardHtml('certifications:'+e.id, summaryLabel, usageLine, bulletTagBadgesHtml(e.tags), body, isOpen);
   }
   return '';
 }
@@ -3312,7 +3487,7 @@ function skillGroupsSectionHtml(isOpen){
 const LIB_GRID_COLS = { skills: 2, tagOptions: 3 };
 function libKindHtml(kind, isOpen){
   const items = LIBRARY[kind]||[];
-  const labelMap = {experience:'experience',projects:'project',education:'education',skills:'skill category',summaries:'summary',references:'reference',customSections:'custom section',tagOptions:'tag'};
+  const labelMap = {experience:'experience',projects:'project',education:'education',skills:'skill category',summaries:'summary',references:'reference',customSections:'custom section',tagOptions:'tag',publications:'publication',certifications:'certification'};
   const cardsList = items.map((e,i)=> entryCardHtml(kind,e,i,isOpen));
   const gridCols = LIB_GRID_COLS[kind];
   const cards = gridCols ? `<div class="lib-grid lib-grid-${gridCols}">${cardsList.join('')}</div>` : cardsList.join('');
@@ -3590,7 +3765,12 @@ async function freezeVersionForImpact(versionId, impact){
     // scope already uses.
     data = { ...data, selection:{ ...data.selection, summaryId:null, customSummaryText: impact.originalValue } };
   } else if(impact.bulletId){
+    // A bullet's own id is globally unique regardless of which position (if any) it lives
+    // under, so a bullet-text freeze needs no positionId of its own -- versionSetBulletOverride()
+    // already resolves correctly either way.
     data = versionSetBulletOverride(data, impact.kind, impact.refId, impact.bulletId, impact.originalValue);
+  } else if(impact.positionId){
+    data = versionSetPositionOverride(data, impact.kind, impact.refId, impact.positionId, impact.field, impact.originalValue);
   } else {
     data = versionSetOverride(data, impact.kind, impact.refId, impact.field, impact.originalValue);
   }
@@ -3793,18 +3973,45 @@ function applyLibraryInputChange(t){
 // (tagOptions.*), any .tags[] array (never printed, see buildUsageIndex()'s own comment), and
 // .contentType (a structural UI toggle, not printed content -- gating a <select> behind a
 // manual Save button would make picking an option feel broken, unlike a text field).
+// Walks "...bullets.N[.children.M].text" starting at `idx` (where parts[idx]==='bullets')
+// against a given flat bullets array -- shared by the flat-entry and positioned-entry branches
+// of fieldUsageForPath() below, and by both a bullet's own text and its one level of
+// sub-bullet children (a child's usage is looked up the exact same way a top-level bullet's
+// is, by its own globally-unique id -- see buildUsageIndex()). `positionId` (optional) just
+// rides along on the returned shape so freezeVersionForImpact() knows which position a
+// non-bullet field freeze belongs to; it plays no part in the bullet lookup itself.
+function resolveBulletFieldUsage(kind, entryId, bulletsArray, parts, idx, positionId){
+  const bullet = bulletsArray && bulletsArray[Number(parts[idx+1])];
+  if(!bullet) return null;
+  let target = bullet, rest = idx+2;
+  if(parts[rest]==='children'){
+    const child = bullet.children && bullet.children[Number(parts[rest+1])];
+    if(!child) return null;
+    target = child; rest += 2;
+  }
+  if(parts[rest]!=='text') return null;
+  const usage = { kind, refId:entryId, bulletId:target.id, field:'text', versions: bulletUsageVersions(kind, entryId, target.id) };
+  if(positionId) usage.positionId = positionId;
+  return usage;
+}
 function fieldUsageForPath(path){
   const parts = path.split('.');
   const kind = parts[0];
   if(kind==='tagOptions') return null;
   const entry = LIBRARY[kind] && LIBRARY[kind][Number(parts[1])];
   if(!entry) return null;
-  if(parts[2]==='bullets'){
-    if(parts[4]!=='text') return null;
-    const bullet = entry.bullets && entry.bullets[Number(parts[3])];
-    if(!bullet) return null;
-    return { kind, refId:entry.id, bulletId:bullet.id, field:'text', versions: bulletUsageVersions(kind, entry.id, bullet.id) };
+  // Positioned entry: "kind.i.positions.j.bullets.k[.children.l].text" or
+  // "kind.i.positions.j.<field>" -- same governed-field/impact-dialog treatment as a flat
+  // entry's own fields/bullets, just addressed one level down.
+  if(parts[2]==='positions'){
+    const position = entry.positions && entry.positions[Number(parts[3])];
+    if(!position) return null;
+    if(parts[4]==='bullets') return resolveBulletFieldUsage(kind, entry.id, position.bullets, parts, 4, position.id);
+    const field = parts[4];
+    if(field==='contentType' || field==='tags') return null;
+    return { kind, refId:entry.id, positionId:position.id, bulletId:null, field, versions: entryUsageVersions(kind, entry.id) };
   }
+  if(parts[2]==='bullets') return resolveBulletFieldUsage(kind, entry.id, entry.bullets, parts, 2, null);
   const field = parts[2];
   if(field==='contentType' || field==='tags') return null;
   return { kind, refId:entry.id, bulletId:null, field, versions: entryUsageVersions(kind, entry.id) };
@@ -3823,12 +4030,27 @@ function renderFieldSaveSlot(path, showButton){
   });
 }
 function applyLibraryClickAction(action, kind, btn){
-  if(!['add-entry','remove-entry','add-bullet','remove-bullet'].includes(action)) return false;
+  const POSITION_ACTIONS = ['add-position','remove-position','move-position','convert-to-positions','add-subbullet','remove-subbullet','move-bullet','move-subbullet'];
+  if(![...['add-entry','remove-entry','add-bullet','remove-bullet'], ...POSITION_ACTIONS].includes(action)) return false;
   noteLibraryHistoryImmediate();
+  const entryId = btn.dataset.id;
+  // Every bullet-scoped action carries an optional data-position-id -- present when that
+  // bullet lives inside a specific position's own bullets array (positions/sub-bullets
+  // feature), absent for a plain, non-positioned entry's flat bullets, exactly matching the
+  // optional positionId parameter every one of these reducers already takes.
+  const positionId = btn.dataset.positionId || undefined;
   if(action==='add-entry') LIBRARY = libAddEntry(LIBRARY, kind);
-  else if(action==='remove-entry') LIBRARY = kind==='tagOptions' ? libRemoveTagOption(LIBRARY, btn.dataset.id) : libRemoveEntry(LIBRARY, kind, btn.dataset.id);
-  else if(action==='add-bullet') LIBRARY = libAddBullet(LIBRARY, kind, btn.dataset.id);
-  else if(action==='remove-bullet') LIBRARY = libRemoveBullet(LIBRARY, kind, btn.dataset.id, btn.dataset.bid);
+  else if(action==='remove-entry') LIBRARY = kind==='tagOptions' ? libRemoveTagOption(LIBRARY, entryId) : libRemoveEntry(LIBRARY, kind, entryId);
+  else if(action==='add-bullet') LIBRARY = libAddBullet(LIBRARY, kind, entryId, positionId);
+  else if(action==='remove-bullet') LIBRARY = libRemoveBullet(LIBRARY, kind, entryId, btn.dataset.bid, positionId);
+  else if(action==='add-position') LIBRARY = libAddPosition(LIBRARY, kind, entryId);
+  else if(action==='remove-position') LIBRARY = libRemovePosition(LIBRARY, kind, entryId, btn.dataset.positionId);
+  else if(action==='move-position') LIBRARY = libMovePosition(LIBRARY, kind, entryId, btn.dataset.positionId, btn.dataset.dir);
+  else if(action==='convert-to-positions') LIBRARY = libConvertEntryToPositions(LIBRARY, kind, entryId);
+  else if(action==='add-subbullet') LIBRARY = libAddSubBullet(LIBRARY, kind, entryId, btn.dataset.bid, positionId);
+  else if(action==='remove-subbullet') LIBRARY = libRemoveSubBullet(LIBRARY, kind, entryId, btn.dataset.bid, btn.dataset.cid, positionId);
+  else if(action==='move-bullet') LIBRARY = libMoveBullet(LIBRARY, kind, entryId, btn.dataset.bid, btn.dataset.dir, positionId);
+  else if(action==='move-subbullet') LIBRARY = libMoveSubBullet(LIBRARY, kind, entryId, btn.dataset.bid, btn.dataset.cid, btn.dataset.dir, positionId);
   scheduleLibrarySave();
   return true;
 }
@@ -3875,7 +4097,7 @@ function commitFieldSave(path){
   }
   const pending = LIBRARY_PENDING_SAVES[path];
   showLibraryImpactDialog({
-    path, kind:usage.kind, refId:usage.refId, bulletId:usage.bulletId, field:usage.field,
+    path, kind:usage.kind, refId:usage.refId, bulletId:usage.bulletId, positionId:usage.positionId, field:usage.field,
     originalValue: pending ? pending.originalValue : null,
     versions: usage.versions
   });
@@ -3925,7 +4147,9 @@ async function openEditor(id, navMode){
   flushVersionSave();
   const full = await DB.getVersion(id);
   if(!full){ toast('Version not found'); return; }
-  CURRENT_VERSION = full.data;
+  // A version fetched fresh from Supabase may predate publications/certifications (or any
+  // future selection kind) entirely -- see ensureVersionSelectionShape()'s own comment.
+  CURRENT_VERSION = ensureVersionSelectionShape(full.data);
   VERSION_REVISIONS[id] = full.revision;
   clearVersionHistory(); // a different document than whatever was open before, if anything
   ENTRY_EDIT_MODAL = null; renderEntryEditModal(); // don't carry a stale edit dialog into a different document
@@ -4085,7 +4309,7 @@ function sectionMoveButtonsHtml(token){
 function editDetailsButtonHtml(kind, entryId){
   return `<button type="button" class="btn btn-ghost btn-sm" data-action="open-edit-modal" data-kind="${kind}" data-entry-id="${esc(entryId)}" style="margin-top:6px;">Edit details</button>`;
 }
-const ED_ADD_LABELS = {experience:'experience', projects:'project', education:'education', skills:'skill category', references:'reference', customSections:'custom section'};
+const ED_ADD_LABELS = {experience:'experience', projects:'project', education:'education', skills:'skill category', references:'reference', customSections:'custom section', publications:'publication', certifications:'certification'};
 
 // Read-only pill badges for a bullet's/skill category's own tags -- tags[] holds pool ids
 // (see LIBRARY.tagOptions), resolved to their current labels here so a rename in the Tags tab
@@ -4098,6 +4322,25 @@ function bulletTagBadgesHtml(tagIds, library){
   const labels = resolveTagLabels(library||LIBRARY, tagIds);
   if(!labels.length) return '';
   return `<span class="bullet-tags">${labels.map(l=>`<span class="bullet-tag-badge">${esc(l)}</span>`).join('')}</span>`;
+}
+// Bullet reordering, in the editor's own selection checklist -- on request, after the same
+// feature had already landed in the Library tab (bulletRowHtml()) and the entry-edit modal
+// (entryEditBulletsHtml()/entryEditPositionsHtml()) but was missing here, the most natural
+// place to want it while actually deciding what a version includes. Reuses the exact same
+// libMoveBullet()/libMoveSubBullet() reducers those two surfaces already use -- there's no
+// separate per-version bullet order, only one underlying entry.bullets/position.bullets order,
+// so reordering from here changes print order for every version that references this entry,
+// same as reordering it from the Library tab would. `parentBulletId` set means this is a
+// sub-bullet's own move pair (reorders within its parent's children array), matching the
+// data-bid(parent)/data-cid(child) shape onEditorClick()'s handler expects.
+function bulletMoveButtonsHtml(kind, entryId, bulletId, positionId, parentBulletId){
+  const posAttr = positionId ? ` data-position-id="${esc(positionId)}"` : '';
+  const action = parentBulletId ? 'move-subbullet' : 'move-bullet';
+  const bidAttr = parentBulletId ? ` data-bid="${esc(parentBulletId)}" data-cid="${esc(bulletId)}"` : ` data-bid="${esc(bulletId)}"`;
+  return `<span class="move-btns sel-bullet-move">
+    <button type="button" class="btn btn-ghost btn-icon" data-action="${action}" data-kind="${esc(kind)}" data-id="${esc(entryId)}"${bidAttr} data-dir="up"${posAttr} title="Move up">${ICONS.chevronUp}</button>
+    <button type="button" class="btn btn-ghost btn-icon" data-action="${action}" data-kind="${esc(kind)}" data-id="${esc(entryId)}"${bidAttr} data-dir="down"${posAttr} title="Move down">${ICONS.chevronDown}</button>
+  </span>`;
 }
 // Applies one checkbox's checked state to the tags[] array at `path`, in whichever global
 // object `root` designates -- 'library' writes into LIBRARY (autosaved, same as every other
@@ -4246,7 +4489,11 @@ function refocusChipInput(chipId){
 function selectionListHtml(kind){
   const lib = currentLibrary();
   const selMap={}; CURRENT_VERSION.selection[kind].forEach((s,i)=> selMap[s.refId]=i);
-  const libraryItems = lib[kind];
+  // ||[] -- publications/certifications (or any future kind) may be entirely absent on a
+  // library saved before that kind existed (a real account's stored row predates it, or a
+  // hand-built test/import fixture never included the key) -- treated as "nothing here yet",
+  // same tolerance every other kind's own array already gets elsewhere in this file.
+  const libraryItems = lib[kind]||[];
   // "+ Add from my Library" only makes sense for a standalone version -- a normal version
   // already IS a view over the shared Library, there's nothing to pull in from itself.
   const addFromLibBtn = isStandaloneVersion() ? `<button class="btn btn-ghost btn-sm" data-action="open-library-picker" data-kind="${kind}">+ Add from my Library</button>` : '';
@@ -4265,23 +4512,52 @@ function selectionListHtml(kind){
   const includedIds = new Set(includedEntries.map(e=>e.id));
   const items = includedEntries.concat(libraryItems.filter(e=>!includedIds.has(e.id)));
   return items.map(entry=>{
-    const hasBullets = kind==='experience'||kind==='projects';
+    const hasBullets = kind==='experience'||kind==='projects'||kind==='publications';
     const included = selMap[entry.id]!==undefined;
-    const label = entryLabel(kind, entry) || '(untitled)';
+    const sel = included ? CURRENT_VERSION.selection[kind][selMap[entry.id]] : undefined;
+    // Resolved through this version's own overrides (field/bullet/position) -- see
+    // resolveEntryOverridesForDisplay()'s own comment for the real bug this fixes: this
+    // checklist used to show the raw library entry regardless of any frozen ("only this
+    // version") override, disagreeing with what the live preview/export and the entry-edit
+    // modal both already correctly showed.
+    const displayEntry = resolveEntryOverridesForDisplay(entry, sel);
+    const label = entryLabel(kind, displayEntry) || '(untitled)';
     let bulletsHtml='';
-    if(hasBullets && included){
-      const sel = CURRENT_VERSION.selection[kind][selMap[entry.id]];
-      bulletsHtml = `<div class="sel-bullets">${entry.bullets.map(b=>{
-        const on = sel.bulletIds.includes(b.id);
-        return `<label class="sel-bullet ${on?'on':''}"><input type="checkbox" data-bullet-toggle data-kind="${kind}" data-ref="${esc(entry.id)}" data-bullet="${esc(b.id)}" ${on?'checked':''}> ${esc(b.text.slice(0,70))}${b.text.length>70?'\u2026':''}${bulletTagBadgesHtml(b.tags, lib)}${!hasMetric(b.text)?' <span class="metric-flag">no metric</span>':''}</label>`;
+    // A single bullet's checklist row, reused for a flat entry's own bullets and for a
+    // position's bullets alike -- and for one level of sub-bullet children, indented and
+    // rendered right after their own parent row (same one-level-only convention as the live
+    // preview/DOCX export).
+    function bulletChecklistRow(b, sel, indent, positionId, parentBulletId){
+      const on = sel.bulletIds.includes(b.id);
+      const childrenHtml = (b.children||[]).map(c=>bulletChecklistRow(c, sel, indent+18, positionId, b.id)).join('');
+      return `<div class="sel-bullet-row" style="${indent?`margin-left:${indent}px;`:''}">
+        <label class="sel-bullet ${on?'on':''}"><input type="checkbox" data-bullet-toggle data-kind="${kind}" data-ref="${esc(entry.id)}" data-bullet="${esc(b.id)}" ${on?'checked':''}> ${esc(b.text.slice(0,70))}${b.text.length>70?'\u2026':''}${bulletTagBadgesHtml(b.tags, lib)}${!hasMetric(b.text)?' <span class="metric-flag">no metric</span>':''}</label>
+        ${bulletMoveButtonsHtml(kind, entry.id, b.id, positionId, parentBulletId)}
+      </div>${childrenHtml}`;
+    }
+    if(hasBullets && included && displayEntry.positions && displayEntry.positions.length){
+      // Multiple positions under one shared entry -- each gets its own include/exclude
+      // checkbox (#5) and, once included, its own bullets checklist. Position order here
+      // matches the Library's own order (reordering positions is a Library-tab concern, same
+      // as skill-category order already is) -- there's no per-version position reorder.
+      const excluded = sel.excludedPositionIds || [];
+      bulletsHtml = `<div class="sel-positions">${displayEntry.positions.map(p=>{
+        const posOn = !excluded.includes(p.id);
+        const posBulletsHtml = posOn ? `<div class="sel-bullets">${(p.bullets||[]).map(b=>bulletChecklistRow(b, sel, 0, p.id)).join('')}</div>` : '';
+        return `<div class="sel-position">
+          <label class="sel-bullet ${posOn?'on':''}"><input type="checkbox" data-position-toggle data-kind="${kind}" data-ref="${esc(entry.id)}" data-position="${esc(p.id)}" ${posOn?'checked':''}> ${esc(p.role||'(untitled position)')}${p.dates?' - '+esc(p.dates):''}${bulletTagBadgesHtml(p.tags, lib)}</label>
+          ${posBulletsHtml}
+        </div>`;
       }).join('')}</div>`;
+    } else if(hasBullets && included){
+      bulletsHtml = `<div class="sel-bullets">${displayEntry.bullets.map(b=>bulletChecklistRow(b, sel, 0)).join('')}</div>`;
     }
     // Skills' own content (the category's comma-separated item list) and tags render on
     // their own line below the label, same as bullets do for experience/projects -- on
     // request ("it looks clumsy with the category label and the items just in the same
     // line"), replacing a single crammed "Label: item, item, item [tags]" line.
-    const skillItemsHtml = kind==='skills' && entry.text ? `<div class="sel-skill-items">${esc(entry.text)}</div>` : '';
-    const skillTagsHtml = kind==='skills' ? bulletTagBadgesHtml(entry.tags, lib) : '';
+    const skillItemsHtml = kind==='skills' && displayEntry.text ? `<div class="sel-skill-items">${esc(displayEntry.text)}</div>` : '';
+    const skillTagsHtml = kind==='skills' ? bulletTagBadgesHtml(displayEntry.tags, lib) : '';
     return `<div class="sel-item">
       <div class="sel-head">
         <input type="checkbox" data-ref-toggle data-kind="${kind}" data-ref="${esc(entry.id)}" ${included?'checked':''}>
@@ -4317,16 +4593,45 @@ function customSectionBlockHtml(cs, included){
   let body = `<label class="chk chk-card"><input type="checkbox" data-ref-toggle data-kind="customSections" data-ref="${esc(cs.id)}" ${included?'checked':''}><span>Include in this version</span></label>`;
   if(included){
     body += sectionHeadingFieldHtml(token, cs.heading||'Untitled');
-    if(cs.contentType==='bullets'){
-      const sel = CURRENT_VERSION.selection.customSections.find(s=>s.refId===cs.id);
+    const sel = CURRENT_VERSION.selection.customSections.find(s=>s.refId===cs.id);
+    // Resolved through this version's own overrides -- see resolveEntryOverridesForDisplay()'s
+    // own comment for the real bug this fixes (this block used to show the raw library entry
+    // regardless of any frozen "only this version" override).
+    const displayCs = resolveEntryOverridesForDisplay(cs, sel);
+    function bulletChecklistRow(b, bulletIds, indent, positionId, parentBulletId){
+      const on = bulletIds.includes(b.id);
+      const childrenHtml = (b.children||[]).map(c=>bulletChecklistRow(c, bulletIds, indent+18, positionId, b.id)).join('');
+      return `<div class="sel-bullet-row" style="${indent?`margin-left:${indent}px;`:''}">
+        <label class="sel-bullet ${on?'on':''}"><input type="checkbox" data-bullet-toggle data-kind="customSections" data-ref="${esc(cs.id)}" data-bullet="${esc(b.id)}" ${on?'checked':''}> ${esc(b.text.slice(0,70))}${b.text.length>70?'…':''}${bulletTagBadgesHtml(b.tags, currentLibrary())}${!hasMetric(b.text)?' <span class="metric-flag">no metric</span>':''}</label>
+        ${bulletMoveButtonsHtml('customSections', cs.id, b.id, positionId, parentBulletId)}
+      </div>${childrenHtml}`;
+    }
+    if(displayCs.positions && displayCs.positions.length){
+      // Multiple sub-entries under one shared heading -- same per-position include/exclude
+      // (#5) + own bullets checklist as Experience's own positions (selectionListHtml()
+      // above); a customSections position can also be paragraph content, shown as a preview
+      // instead of a checklist, same tolerance the flat (non-positioned) branch below has.
+      const excluded = (sel && sel.excludedPositionIds) || [];
       const bulletIds = sel ? sel.bulletIds : [];
-      body += `<div class="sel-bullets">${cs.bullets.map(b=>{
-        const on = bulletIds.includes(b.id);
-        return `<label class="sel-bullet ${on?'on':''}"><input type="checkbox" data-bullet-toggle data-kind="customSections" data-ref="${esc(cs.id)}" data-bullet="${esc(b.id)}" ${on?'checked':''}> ${esc(b.text.slice(0,70))}${b.text.length>70?'…':''}${bulletTagBadgesHtml(b.tags, currentLibrary())}${!hasMetric(b.text)?' <span class="metric-flag">no metric</span>':''}</label>`;
+      body += `<div class="sel-positions">${displayCs.positions.map(p=>{
+        const posOn = !excluded.includes(p.id);
+        let posContentHtml = '';
+        if(posOn){
+          posContentHtml = p.contentType==='paragraph'
+            ? `<p style="font-size:12px;color:var(--text-muted);margin-top:6px;">${esc((p.text||'').slice(0,140))}${(p.text||'').length>140?'…':''}</p>`
+            : `<div class="sel-bullets">${(p.bullets||[]).map(b=>bulletChecklistRow(b, bulletIds, 0, p.id)).join('')}</div>`;
+        }
+        return `<div class="sel-position">
+          <label class="sel-bullet ${posOn?'on':''}"><input type="checkbox" data-position-toggle data-kind="customSections" data-ref="${esc(cs.id)}" data-position="${esc(p.id)}" ${posOn?'checked':''}> ${esc(p.subheading||'(untitled sub-entry)')}${p.dates?' - '+esc(p.dates):''}${bulletTagBadgesHtml(p.tags, currentLibrary())}</label>
+          ${posContentHtml}
+        </div>`;
       }).join('')}</div>`;
+    } else if(displayCs.contentType==='bullets'){
+      const bulletIds = sel ? sel.bulletIds : [];
+      body += `<div class="sel-bullets">${displayCs.bullets.map(b=>bulletChecklistRow(b, bulletIds, 0)).join('')}</div>`;
     } else {
-      const preview = (cs.text||'').slice(0,140);
-      body += `<p style="font-size:12px;color:var(--text-muted);margin-top:6px;">${esc(preview)}${(cs.text||'').length>140?'…':''}</p>`;
+      const preview = (displayCs.text||'').slice(0,140);
+      body += `<p style="font-size:12px;color:var(--text-muted);margin-top:6px;">${esc(preview)}${(displayCs.text||'').length>140?'…':''}</p>`;
     }
   }
   // Unconditional (not gated on `included`) -- same as Library tab, a custom section's own
@@ -4376,11 +4681,26 @@ function stylePanelHtml(style, pathPrefix, pageSize, pageSizePath, compact){
   // Every field this panel exposes, each as its own standalone snippet -- both branches below
   // just compose these in a different order/grouping, rather than keeping two near-duplicate
   // copies of the same field markup in sync by hand.
+  // Cambria/Computer Modern/Garamond added on request ("add more possible fonts like LaTeX's
+  // default Computer Modern, serif etc") -- each backed by a real, freely-licensed font
+  // actually installed server-side (see pdf-service/Dockerfile), same discipline the existing
+  // Calibri/Carlito substitution already follows, so preview and PDF/DOCX export always match
+  // regardless of what's installed on the user's own machine:
+  //  - Computer Modern: Latin Modern (fonts-lmodern) -- the standard freely-licensed digital
+  //    descendant of Knuth's original Computer Modern, LaTeX's own default typeface.
+  //  - Cambria: shown under its familiar name but the value points straight at Caladea
+  //    (fonts-crosextra-caladea) -- Google's metric-compatible free clone, the exact same
+  //    substitution pattern normalizeFontFamily() already applies for Calibri/Carlito.
+  //  - Garamond: EB Garamond (fonts-ebgaramond) -- offered as itself, not disguising a
+  //    proprietary font, same as Georgia already is.
   const fontFieldHtml = `<div class="field"><label>Font family</label><select data-path="${pathPrefix}.fontFamily">
     <option value='"Times New Roman", Times, serif' ${st.fontFamily.includes('Times')?'selected':''}>Times New Roman</option>
     <option value='Arial, sans-serif' ${st.fontFamily.includes('Arial')?'selected':''}>Arial</option>
     <option value='"Carlito", sans-serif' ${(st.fontFamily.includes('Calibri')||st.fontFamily.includes('Carlito'))?'selected':''}>Calibri</option>
     <option value='Georgia, serif' ${st.fontFamily.includes('Georgia')?'selected':''}>Georgia</option>
+    <option value='"Caladea", serif' ${(st.fontFamily.includes('Cambria')||st.fontFamily.includes('Caladea'))?'selected':''}>Cambria</option>
+    <option value='"EB Garamond", serif' ${st.fontFamily.includes('Garamond')?'selected':''}>Garamond</option>
+    <option value='"Latin Modern Roman", "CMU Serif", serif' ${(st.fontFamily.includes('Latin Modern')||st.fontFamily.includes('Computer Modern')||st.fontFamily.includes('CMU'))?'selected':''}>Computer Modern</option>
   </select></div>`;
   const headingAlignFieldHtml = `<div class="field"><label>Heading align</label><select data-path="${pathPrefix}.headingAlign">
       <option value="left" ${st.headingAlign==='left'?'selected':''}>Left</option>
@@ -4438,7 +4758,9 @@ function stylePanelHtml(style, pathPrefix, pageSize, pageSizePath, compact){
   ${underlineUppercaseHtml}
   ${compact?'':`<div class="field-row4" style="margin-top:8px;">${marginsFieldsHtml}</div>${pageSizeFieldOwnLineHtml}`}
   <div style="font-size:11px;color:var(--text-muted);margin:8px 0 2px;">Bold fields</div>
-  <div class="bold-toggles">${Object.keys(st.bold).filter(k=>k!=='dates').map(k=>`<label class="chk chk-card"><input type="checkbox" data-path="${pathPrefix}.bold.${k}" ${st.bold[k]?'checked':''}><span>${k}</span></label>`).join('')}</div>`;
+  <div class="bold-toggles">${Object.keys(st.bold).filter(k=>k!=='dates').map(k=>`<label class="chk chk-card"><input type="checkbox" data-path="${pathPrefix}.bold.${k}" ${st.bold[k]?'checked':''}><span>${k}</span></label>`).join('')}</div>
+  <div style="font-size:11px;color:var(--text-muted);margin:8px 0 2px;">Italic fields</div>
+  <div class="bold-toggles">${Object.keys(st.bold).filter(k=>k!=='dates').map(k=>`<label class="chk chk-card"><input type="checkbox" data-path="${pathPrefix}.italic.${k}" ${(st.italic&&st.italic[k])?'checked':''}><span>${k}</span></label>`).join('')}</div>`;
 }
 function moveSelection(version, kind, refId, dir){
   const list = version.selection[kind];
@@ -4459,6 +4781,8 @@ const BUILTIN_SECTION_META = {
   education:  { label:'Education',  defaultHeading:'Education',       defaultOpen:false, body:()=>sectionHeadingFieldHtml('education','Education')+selectionListHtml('education') },
   skills:     { label:'Skills',     defaultHeading:'Skills',          defaultOpen:false, body:()=>sectionHeadingFieldHtml('skills','Skills')+skillSetSelectorHtml() },
   references: { label:'References', defaultHeading:'References',      defaultOpen:false, body:()=>sectionHeadingFieldHtml('references','References')+referencesPanelHtml() },
+  publications: { label:'Publications', defaultHeading:'Publications', defaultOpen:false, body:()=>sectionHeadingFieldHtml('publications','Publications')+selectionListHtml('publications') },
+  certifications: { label:'Certifications', defaultHeading:'Certifications', defaultOpen:false, body:()=>sectionHeadingFieldHtml('certifications','Certifications')+selectionListHtml('certifications') },
 };
 
 /* ===== entry-edit modal =====
@@ -4484,20 +4808,82 @@ const ENTRY_EDIT_FIELDS = {
   skills: [['label','Category label'],['text','Items']],
   references: [['name','Name'],['title','Title / relationship'],['contact','Contact']],
   customSections: [['subheading','Subheading (optional)'],['location','Location (optional)'],['dates','Dates (optional)'],['contentType','Content type'],['text','Paragraph text (used when Content type is Paragraph)']],
+  publications: [['title','Title'],['authors','Authors'],['venue','Venue'],['date','Date'],['url','URL (optional)']],
+  certifications: [['name','Name'],['issuer','Issuer'],['date','Date'],['credentialId','Credential ID (optional)'],['url','URL (optional)']],
 };
+// A real, reported bug: opening the entry-edit modal on a *positioned* Experience/Custom
+// Section entry showed every field blank -- ENTRY_EDIT_FIELDS' flat role/dates/location (or
+// subheading/dates/contentType/text) are exactly the fields a positioned entry leaves unused
+// (the real content lives in entry.positions instead), and the modal had no positions-aware
+// branch at all. This matters most for a standalone version: its embedded entries have no
+// Library tab to fall back to, so this modal is the *only* place their content can be edited
+// at all -- "content is edited in exactly one place" (the Library tab's own positionCardHtml())
+// breaks down entirely there. Fixed by giving the modal its own positions-aware rendering
+// (entryEditPositionsHtml() below) for any kind that can have positions, used whenever the
+// entry actually has them; company/tag (experience) stay visible via the normal flat-fields
+// path even when positioned, since those two are the position-independent, shared header --
+// listed here so the modal knows which flat fields still apply. customSections has no
+// shared field at all once positioned (heading itself is edited elsewhere, via
+// sectionHeadingFieldHtml() in the editor, same as it always has been) -- absent from this map
+// entirely, which reads as "no flat fields survive being positioned."
+const ENTRY_EDIT_SHARED_FIELDS_WHEN_POSITIONED = { experience: ['company','tag'] };
+const POSITIONABLE_KINDS = ['experience','customSections'];
 // The resolved (library value, shadowed by any existing per-version override) view of an
 // entry -- what the modal should show when it opens, so editing starts from what's actually
 // showing in the preview right now, not a stale library value a prior override has already
 // superseded for this version.
+// Applies a version's own per-entry overrides (field overrides, bullet-text overrides, and --
+// a real gap this same fix closes -- per-position field overrides) onto a raw library entry,
+// the exact same override-merging resolveVersion() itself does when deciding what actually
+// prints. Shared by every place in the editor that shows an entry's content in the context of
+// one specific version: the entry-edit modal (resolvedEntryForModal() below) and the
+// selection checklist/custom-section block (selectionListHtml()/customSectionBlockHtml()).
+//
+// A REAL, REPORTED BUG this fixes: the selection checklist used to read straight from the raw
+// library entry with no override merging at all, so a version with a frozen ("only this
+// version") bullet/field/position override showed the library's own generic text in the
+// checklist while the live preview, PDF/DOCX export, and (separately) the entry-edit modal all
+// correctly showed the frozen, version-specific text -- three different views of "what's
+// actually in this version" disagreeing with each other, confusing on its own even before
+// noticing the checklist was the one showing stale text.
+//
+// Deliberately does NOT filter which bullets/positions are present (unlike resolveVersion()'s
+// own resolveKind(), which drops anything not in sel.bulletIds/outside excludedPositionIds) --
+// callers here want to show every bullet/position that exists, each with its own
+// included/excluded state, not just the ones that would print.
+function resolveEntryOverridesForDisplay(entry, sel){
+  if(!entry) return entry;
+  let resolved = sel && sel.overrides ? {...entry, ...sel.overrides} : entry;
+  function resolveBullets(bullets){
+    if(!bullets || !sel || !sel.bulletOverrides) return bullets;
+    return bullets.map(b=>{
+      const ov = sel.bulletOverrides[b.id];
+      let rb = ov!=null ? {...b, text:ov} : b;
+      if(rb.children && rb.children.length){
+        rb = {...rb, children: rb.children.map(c=>{
+          const cov = sel.bulletOverrides[c.id];
+          return cov!=null ? {...c, text:cov} : c;
+        })};
+      }
+      return rb;
+    });
+  }
+  if(resolved.positions){
+    resolved = {...resolved, positions: resolved.positions.map(p=>{
+      const posOv = sel && sel.positionOverrides && sel.positionOverrides[p.id];
+      const rp = posOv ? {...p, ...posOv} : p;
+      return {...rp, bullets: resolveBullets(rp.bullets)};
+    })};
+  } else if(resolved.bullets){
+    resolved = {...resolved, bullets: resolveBullets(resolved.bullets)};
+  }
+  return resolved;
+}
 function resolvedEntryForModal(kind, entryId){
   const libEntry = currentLibrary()[kind].find(e=>e.id===entryId);
   if(!libEntry) return null;
   const sel = CURRENT_VERSION.selection[kind].find(s=>s.refId===entryId);
-  let resolved = sel && sel.overrides ? {...libEntry, ...sel.overrides} : libEntry;
-  if(resolved.bullets && sel && sel.bulletOverrides){
-    resolved = {...resolved, bullets: resolved.bullets.map(b=> sel.bulletOverrides[b.id]!=null ? {...b, text:sel.bulletOverrides[b.id]} : b)};
-  }
-  return resolved;
+  return resolveEntryOverridesForDisplay(libEntry, sel);
 }
 function entryEditFieldInputHtml(kind, field, label, value){
   if(field==='contentType'){
@@ -4516,15 +4902,84 @@ function entryEditBulletsHtml(resolvedEntry){
   // Library" escape hatch (see addStandaloneBulletToLibrary() below) -- only relevant, and only
   // rendered, when the entry being edited lives in a standalone version's embedded copy. A
   // normal version's bullets already live in the shared LIBRARY; there's nothing to "add".
+  // Tag badges, on request ("the tags is not showing there, i want tags to know which bullet i
+  // am editing") -- when the same underlying achievement exists as several tag-variant bullets
+  // (the same content reworded per target role), the text alone often isn't enough to tell them
+  // apart at a glance; the selection checklist already shows tags for exactly this reason
+  // (bulletChecklistRow() in selectionListHtml()), this modal just never did.
   return `<div style="font-size:11px;color:var(--text-muted);margin:10px 0 4px;">Bullets</div>
     ${resolvedEntry.bullets.map(b=>`<div class="bullet-row">
-      <textarea id="ef_bullet_${esc(b.id)}">${esc(b.text)}</textarea>
+      <div class="bullet-row-main">
+        <textarea id="ef_bullet_${esc(b.id)}">${esc(b.text)}</textarea>
+        ${bulletTagBadgesHtml(b.tags, currentLibrary())}
+      </div>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
         ${isStandaloneVersion()?`<button type="button" class="btn btn-ghost btn-sm" data-modal-action="add-bullet-to-library" data-bullet-id="${esc(b.id)}" title="Add this bullet to your Library">+ Library</button>`:''}
+        <span class="move-btns">
+          <button type="button" class="btn btn-ghost btn-icon" data-modal-action="move-bullet" data-bullet-id="${esc(b.id)}" data-dir="up" title="Move up">${ICONS.chevronUp}</button>
+          <button type="button" class="btn btn-ghost btn-icon" data-modal-action="move-bullet" data-bullet-id="${esc(b.id)}" data-dir="down" title="Move down">${ICONS.chevronDown}</button>
+        </span>
         <button type="button" class="btn btn-danger btn-icon" data-modal-action="remove-bullet" data-bullet-id="${esc(b.id)}">${ICONS.close}</button>
       </div>
     </div>`).join('')}
     <button type="button" class="btn btn-ghost btn-sm" data-modal-action="add-bullet">+ Add bullet</button>`;
+}
+// One position/sub-entry's editable fields+bullets inside the entry-edit modal -- same field
+// shape positionCardHtml() (Library tab) already has, but following this modal's own
+// deliberately-not-live-bound convention (nothing writes anywhere until Save; see this file's
+// own comment on why) rather than data-path. Every input id is scoped by position id
+// ("ef_pos_<positionId>_<field>") so saveEntryEditModal() can address each position
+// individually; bullet ids stay the plain "ef_bullet_<bulletId>" scheme every other bullet
+// input in this modal already uses (bullet ids are globally unique regardless of which
+// position they live under, so no extra scoping is needed there).
+function entryEditPositionsHtml(libEntry, kind){
+  const rows = libEntry.positions.map(p=>{
+    const posPrefix = 'ef_pos_'+p.id+'_';
+    // Same Organization+Subheading pairing positionCardHtml() (Library tab) has -- see that
+    // function's own comment for why customSections gets a per-position org field while
+    // Experience doesn't (Company already lives once, at the entry level, there).
+    const nameFieldsHtml = kind==='experience'
+      ? `<div class="field"><label>Role</label><input type="text" id="${posPrefix}role" value="${esc(p.role||'')}"></div>`
+      : `<div class="field-row">
+          <div class="field"><label>Organization (optional)</label><input type="text" id="${posPrefix}org" value="${esc(p.org||'')}"></div>
+          <div class="field"><label>Subheading (optional)</label><input type="text" id="${posPrefix}subheading" value="${esc(p.subheading||'')}"></div>
+        </div>`;
+    const contentTypeHtml = kind==='customSections' ? `<div class="field"><label>Content type</label><select id="${posPrefix}contentType">
+        <option value="bullets" ${p.contentType==='bullets'?'selected':''}>Bullets</option>
+        <option value="paragraph" ${p.contentType==='paragraph'?'selected':''}>Paragraph</option>
+      </select></div>` : '';
+    const showBullets = kind==='experience' || p.contentType!=='paragraph';
+    const contentHtml = showBullets ? `
+      <div style="font-size:11px;color:var(--text-muted);margin:6px 0 4px;">Bullets</div>
+      ${(p.bullets||[]).map(b=>`<div class="bullet-row">
+        <div class="bullet-row-main">
+          <textarea id="ef_bullet_${esc(b.id)}">${esc(b.text)}</textarea>
+          ${bulletTagBadgesHtml(b.tags, currentLibrary())}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          ${isStandaloneVersion()?`<button type="button" class="btn btn-ghost btn-sm" data-modal-action="add-bullet-to-library" data-bullet-id="${esc(b.id)}" title="Add this bullet to your Library">+ Library</button>`:''}
+          <span class="move-btns">
+            <button type="button" class="btn btn-ghost btn-icon" data-modal-action="move-bullet" data-bullet-id="${esc(b.id)}" data-position-id="${esc(p.id)}" data-dir="up" title="Move up">${ICONS.chevronUp}</button>
+            <button type="button" class="btn btn-ghost btn-icon" data-modal-action="move-bullet" data-bullet-id="${esc(b.id)}" data-position-id="${esc(p.id)}" data-dir="down" title="Move down">${ICONS.chevronDown}</button>
+          </span>
+          <button type="button" class="btn btn-danger btn-icon" data-modal-action="remove-bullet" data-bullet-id="${esc(b.id)}" data-position-id="${esc(p.id)}">${ICONS.close}</button>
+        </div>
+      </div>`).join('')}
+      <button type="button" class="btn btn-ghost btn-sm" data-modal-action="add-bullet" data-position-id="${esc(p.id)}">+ Add bullet</button>
+    ` : `<div class="field"><label>Text (use **word** for inline bold)</label><textarea id="${posPrefix}text" rows="3">${esc(p.text||'')}</textarea></div>`;
+    return `<div class="entry" style="margin-bottom:10px;padding:10px;border:1px solid var(--border);border-radius:6px;">
+      <div class="entry-top"><button type="button" class="btn btn-danger btn-icon" data-modal-action="remove-position" data-position-id="${esc(p.id)}">${ICONS.close}</button></div>
+      ${nameFieldsHtml}
+      <div class="field-row">
+        <div class="field"><label>Dates</label><input type="text" id="${posPrefix}dates" value="${esc(p.dates||'')}"></div>
+        <div class="field"><label>Location (optional)</label><input type="text" id="${posPrefix}location" value="${esc(p.location||'')}"></div>
+      </div>
+      ${contentTypeHtml}
+      ${contentHtml}
+    </div>`;
+  }).join('');
+  return `<div style="font-size:11px;color:var(--text-muted);margin:10px 0 6px;">Positions</div>${rows}
+    <button type="button" class="btn btn-ghost btn-sm" data-modal-action="add-position">+ Add another position</button>`;
 }
 function entryEditModalHtml(){
   if(!ENTRY_EDIT_MODAL) return '';
@@ -4568,11 +5023,35 @@ function entryEditModalHtml(){
   if(!libEntry) return '';
   const resolved = resolvedEntryForModal(kind, entryId);
   const sel = CURRENT_VERSION.selection[kind].find(s=>s.refId===entryId);
+  const isPositionable = POSITIONABLE_KINDS.includes(kind);
+  const hasPositions = isPositionable && libEntry.positions && libEntry.positions.length;
   const fields = ENTRY_EDIT_FIELDS[kind];
-  const fieldsHtml = fields.map(([f,label])=> entryEditFieldInputHtml(kind, f, label, resolved[f])).join('');
-  const bulletsHtml = resolved.bullets ? entryEditBulletsHtml(resolved) : '';
+  // A positioned entry leaves most flat fields unused (the real content lives in
+  // entry.positions instead) -- only the ones listed in ENTRY_EDIT_SHARED_FIELDS_WHEN_POSITIONED
+  // (company/tag for experience; nothing for customSections) still apply when positioned.
+  const visibleFields = hasPositions
+    ? fields.filter(([f])=> (ENTRY_EDIT_SHARED_FIELDS_WHEN_POSITIONED[kind]||[]).includes(f))
+    : fields;
+  const fieldsHtml = visibleFields.map(([f,label])=> entryEditFieldInputHtml(kind, f, label, resolved[f])).join('');
+  const bulletsHtml = hasPositions ? '' : (resolved.bullets ? entryEditBulletsHtml(resolved) : '');
+  // Positions area: the real positions checklist when the entry already has any, or a single
+  // "+ Add multiple positions" convert button when it doesn't yet -- the only way to reach that
+  // conversion at all for a standalone version, which has no Library tab to click through to.
+  // Positions rendered from `resolved` (not raw libEntry) -- a real bug caught while
+  // verifying this fix: entryEditPositionsHtml() was reading straight from the unresolved
+  // library entry, so a frozen per-position override (versionSetPositionOverride()) never
+  // showed here either, the exact same class of mismatch this whole fix is about.
+  const positionsAreaHtml = !isPositionable ? '' : (hasPositions
+    ? entryEditPositionsHtml(resolved, kind)
+    : `<button type="button" class="btn btn-ghost btn-sm" data-modal-action="convert-to-positions" style="margin-top:8px;">+ Add multiple ${kind==='experience'?'positions (e.g. several roles at this company)':'sub-entries under this heading'}</button>`);
   const kindLabel = ED_ADD_LABELS[kind] || kind;
-  const scopeHtml = standalone ? '' : `<div class="edit-scope-choice">
+  // Positioned entries skip the scope choice entirely and always save straight to whichever
+  // library the version actually uses (shared LIBRARY, or embeddedLibrary for a standalone
+  // version) -- the same no-scope-choice simplicity the Library tab's own positionCardHtml()
+  // already has; a per-version "freeze one position's field" override still exists at the data
+  // layer (versionSetPositionOverride(), see CLAUDE.md) but isn't reachable from this modal, a
+  // known, accepted gap for now (there's no web-app UI action for it at all yet).
+  const scopeHtml = (standalone || hasPositions) ? '' : `<div class="edit-scope-choice">
           <div class="gh-section-label">Save changes to</div>
           <label class="chk chk-card" style="margin-bottom:6px;"><input type="radio" name="editScope" value="library" checked><span>Library (all versions)</span></label>
           <label class="chk chk-card" style="margin-bottom:6px;" ${sel?'':'title="Include this in the version first to enable a version-only edit"'}><input type="radio" name="editScope" value="version" ${sel?'':'disabled'}><span>Only this version</span></label>
@@ -4588,6 +5067,7 @@ function entryEditModalHtml(){
       <div class="gh-modal-body">
         ${fieldsHtml}
         ${bulletsHtml}
+        ${positionsAreaHtml}
         ${scopeHtml}
       </div>
       <div class="gh-actions">
@@ -4648,10 +5128,13 @@ function renderEntryEditModal(){
     closeEntryEditModal();
     renderEditor();
   };
+  // data-position-id (optional, present only on a position's own bullet buttons -- see
+  // entryEditPositionsHtml()) routes the add/remove into that position's own bullets array,
+  // same optional-positionId convention every other bullet reducer already has.
   wrap.querySelectorAll('[data-modal-action="add-bullet"]').forEach(btn=> btn.onclick = ()=>{
     const snap = snapshotModalFieldValues();
     noteCurrentLibraryHistory();
-    mutateCurrentLibrary(lib=>libAddBullet(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId));
+    mutateCurrentLibrary(lib=>libAddBullet(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId, btn.dataset.positionId));
     renderEntryEditModal();
     restoreModalFieldValues(snap);
   });
@@ -4659,7 +5142,39 @@ function renderEntryEditModal(){
     const snap = snapshotModalFieldValues();
     delete snap.vals['ef_bullet_'+btn.dataset.bulletId];
     noteCurrentLibraryHistory();
-    mutateCurrentLibrary(lib=>libRemoveBullet(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId, btn.dataset.bulletId));
+    mutateCurrentLibrary(lib=>libRemoveBullet(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId, btn.dataset.bulletId, btn.dataset.positionId));
+    renderEntryEditModal();
+    restoreModalFieldValues(snap);
+  });
+  wrap.querySelectorAll('[data-modal-action="move-bullet"]').forEach(btn=> btn.onclick = ()=>{
+    const snap = snapshotModalFieldValues();
+    noteCurrentLibraryHistory();
+    mutateCurrentLibrary(lib=>libMoveBullet(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId, btn.dataset.bulletId, btn.dataset.dir, btn.dataset.positionId));
+    renderEntryEditModal();
+    restoreModalFieldValues(snap);
+  });
+  // Positions themselves -- add/remove a position, or convert a still-flat entry into a
+  // positioned one (carrying its existing role/dates/bullets into a real first position, see
+  // libConvertEntryToPositions()). All three are the only way a standalone version's own
+  // embedded entry can reach this at all, since it has no Library tab to fall back to.
+  wrap.querySelectorAll('[data-modal-action="add-position"]').forEach(btn=> btn.onclick = ()=>{
+    const snap = snapshotModalFieldValues();
+    noteCurrentLibraryHistory();
+    mutateCurrentLibrary(lib=>libAddPosition(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId));
+    renderEntryEditModal();
+    restoreModalFieldValues(snap);
+  });
+  wrap.querySelectorAll('[data-modal-action="remove-position"]').forEach(btn=> btn.onclick = ()=>{
+    const snap = snapshotModalFieldValues();
+    noteCurrentLibraryHistory();
+    mutateCurrentLibrary(lib=>libRemovePosition(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId, btn.dataset.positionId));
+    renderEntryEditModal();
+    restoreModalFieldValues(snap);
+  });
+  wrap.querySelectorAll('[data-modal-action="convert-to-positions"]').forEach(btn=> btn.onclick = ()=>{
+    const snap = snapshotModalFieldValues();
+    noteCurrentLibraryHistory();
+    mutateCurrentLibrary(lib=>libConvertEntryToPositions(lib, ENTRY_EDIT_MODAL.kind, ENTRY_EDIT_MODAL.entryId));
     renderEntryEditModal();
     restoreModalFieldValues(snap);
   });
@@ -4683,6 +5198,9 @@ function renderEntryEditModal(){
     if(draft.bullets){
       draft.bullets = draft.bullets.map(b=>{ const el=document.getElementById('ef_bullet_'+b.id); return el ? {...b, text:el.value} : b; });
     }
+    if(draft.positions && draft.positions.length){
+      draft.positions = readPositionsFromModal(draft.positions, kind);
+    }
     addStandaloneEntryToLibrary(kind, draft);
   };
   wrap.querySelectorAll('[data-modal-action="add-bullet-to-library"]').forEach(btn=> btn.onclick = ()=>{
@@ -4693,6 +5211,21 @@ function renderEntryEditModal(){
   const firstField = wrap.querySelector('input, textarea, select');
   if(firstField) firstField.focus();
   if(isFreshOpen) animateModalIn(overlay);
+}
+// Reads the live, in-progress values out of entryEditPositionsHtml()'s own inputs (never
+// live-bound -- see this file's own comment on that convention) back into a positions array --
+// shared by saveEntryEditModal()'s 'library' branch and the "Add to my Library" escape hatch
+// below, so both read the exact same in-modal state rather than two independent copies of the
+// same field-reading logic that could drift.
+function readPositionsFromModal(positions, kind){
+  const posFields = kind==='experience' ? ['role','dates','location'] : ['subheading','org','dates','location','contentType','text'];
+  return (positions||[]).map(p=>{
+    const posPrefix = 'ef_pos_'+p.id+'_';
+    const updatedPos = {...p};
+    posFields.forEach(f=>{ const el=document.getElementById(posPrefix+f); if(el) updatedPos[f]=el.value; });
+    updatedPos.bullets = (p.bullets||[]).map(b=>{ const el=document.getElementById('ef_bullet_'+b.id); return el ? {...b, text:el.value} : b; });
+    return updatedPos;
+  });
 }
 async function saveEntryEditModal(){
   if(!ENTRY_EDIT_MODAL) return;
@@ -4763,6 +5296,13 @@ async function saveEntryEditModal(){
         const el = document.getElementById('ef_bullet_'+b.id);
         return el ? {...b, text: el.value} : b;
       });
+    }
+    // A positioned entry's real content lives in entry.positions, read via the shared helper
+    // (entryEditPositionsHtml() is what rendered these inputs) -- see this block's own header
+    // comment above for why this is the *only* place a standalone version's positioned entry
+    // can be edited at all.
+    if(updated.positions && updated.positions.length){
+      updated.positions = readPositionsFromModal(updated.positions, kind);
     }
     mutateCurrentLibrary(lib=>({...lib, [kind]: lib[kind].map(e=> e.id===entryId ? updated : e)}));
     // Clear any stale version-only overrides for the fields just written to the library --
@@ -5133,6 +5673,14 @@ function onEditorEvent(ev){
     CURRENT_VERSION = versionToggleBullet(CURRENT_VERSION, t.dataset.kind, t.dataset.ref, t.dataset.bullet, t.checked);
     scheduleVersionSave(); renderEditor(); return;
   }
+  // Per-position include/exclude (#5) -- show 2 of 3 roles at a company on a shorter resume,
+  // independent of the whole entry being included. Mirrors data-ref-toggle/data-bullet-toggle
+  // above exactly, just one level down.
+  if(t.dataset.positionToggle!==undefined){
+    if(ev.type==='input') noteVersionHistoryImmediate();
+    CURRENT_VERSION = versionSetPositionIncluded(CURRENT_VERSION, t.dataset.kind, t.dataset.ref, t.dataset.position, t.checked);
+    scheduleVersionSave(); renderEditor(); return;
+  }
 }
 // Creates a brand-new library entry (or custom section) and immediately includes it in the
 // current version, then opens its edit modal ready to type -- so "+ Add new X" from inside
@@ -5204,6 +5752,25 @@ function onEditorClick(ev){
   if(editBtn){ openEntryEditModal(editBtn.dataset.kind, editBtn.dataset.entryId); return; }
   const moveBtn = ev.target.closest('button[data-move]');
   if(moveBtn){ noteVersionHistoryImmediate(); CURRENT_VERSION = moveSelection(CURRENT_VERSION, moveBtn.dataset.kind, moveBtn.dataset.ref, moveBtn.dataset.move); scheduleVersionSave(); renderEditor(); return; }
+  // Bullet/sub-bullet reordering from the selection checklist -- see bulletMoveButtonsHtml()'s
+  // own comment. This mutates the Library (or embeddedLibrary for a standalone version) via the
+  // exact same mutateCurrentLibrary()/libMoveBullet()/libMoveSubBullet() path the Library tab and
+  // entry-edit modal already use, not CURRENT_VERSION -- there's no separate per-version bullet
+  // order to reorder.
+  const moveBulletBtn = ev.target.closest('button[data-action="move-bullet"]');
+  if(moveBulletBtn){
+    noteCurrentLibraryHistory();
+    mutateCurrentLibrary(lib=>libMoveBullet(lib, moveBulletBtn.dataset.kind, moveBulletBtn.dataset.id, moveBulletBtn.dataset.bid, moveBulletBtn.dataset.dir, moveBulletBtn.dataset.positionId));
+    renderEditor();
+    return;
+  }
+  const moveSubBulletBtn = ev.target.closest('button[data-action="move-subbullet"]');
+  if(moveSubBulletBtn){
+    noteCurrentLibraryHistory();
+    mutateCurrentLibrary(lib=>libMoveSubBullet(lib, moveSubBulletBtn.dataset.kind, moveSubBulletBtn.dataset.id, moveSubBulletBtn.dataset.bid, moveSubBulletBtn.dataset.cid, moveSubBulletBtn.dataset.dir, moveSubBulletBtn.dataset.positionId));
+    renderEditor();
+    return;
+  }
   const secBtn = ev.target.closest('button[data-action="move-section"]');
   if(secBtn){
     // These buttons live inside a <summary> (for the 5 built-in sections) -- an unprevented
@@ -5217,9 +5784,23 @@ function onEditorClick(ev){
 /* ===== pagination-driven preview ===== */
 function pt(n){ return n+'pt'; }
 function spacerEl(pts){ const d=document.createElement('div'); d.style.height=pt(pts); return d; }
-function bd(text, flagKey){ return CURRENT_VERSION.style.bold[flagKey] ? '<b>'+esc(text)+'</b>' : esc(text); }
+// Italic fields (added alongside Bold, same flag keys -- see defaultStyle()'s own comment)
+// checked here too so every existing bd(text,'company') call site across this file picks up
+// italic for free, with no changes needed at any of those ~15+ call sites. `style.italic` may
+// be absent on a version/preference saved before this existed -- guarded, not migrated.
+function bd(text, flagKey){
+  let out = esc(text);
+  if(CURRENT_VERSION.style.italic && CURRENT_VERSION.style.italic[flagKey]) out = '<i>'+out+'</i>';
+  if(CURRENT_VERSION.style.bold[flagKey]) out = '<b>'+out+'</b>';
+  return out;
+}
 function renderInlineMarkup(text){
-  return parseInlineBold(text).map(seg=> seg.bold ? '<b>'+esc(seg.text)+'</b>' : esc(seg.text)).join('');
+  return parseInlineBold(text).map(seg=>{
+    let out = esc(seg.text);
+    if(seg.italic) out = '<i>'+out+'</i>';
+    if(seg.bold) out = '<b>'+out+'</b>';
+    return out;
+  }).join('');
 }
 function buildHeaderNode(){
   const st=CURRENT_VERSION.style;
@@ -5235,8 +5816,14 @@ function buildHeaderNode(){
   const contact=document.createElement('div');
   contact.style.cssText=`font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsContact)};text-align:center;margin:2pt 0 0;`;
   const sep=()=>document.createTextNode('   |   ');
+  // Order: Location, Phone, Email, LinkedIn, GitHub, Portfolio -- on request.
   let any=false;
-  if(meta.phone){ contact.appendChild(document.createTextNode(meta.phone)); any=true; }
+  if(meta.location){ contact.appendChild(document.createTextNode(meta.location)); any=true; }
+  if(meta.phone){
+    if(any) contact.appendChild(sep());
+    contact.appendChild(document.createTextNode(meta.phone));
+    any=true;
+  }
   if(meta.email){
     if(any) contact.appendChild(sep());
     const a=document.createElement('a');
@@ -5245,11 +5832,6 @@ function buildHeaderNode(){
     a.className='contact-email';
     a.style.cssText='color:#0563C1;text-decoration:underline;';
     contact.appendChild(a);
-    any=true;
-  }
-  if(meta.location){
-    if(any) contact.appendChild(sep());
-    contact.appendChild(document.createTextNode(meta.location));
     any=true;
   }
   [['LinkedIn',meta.linkedin],['GitHub',meta.github],['Portfolio',meta.portfolio]].forEach(([label,val])=>{
@@ -5294,28 +5876,76 @@ function buildRowFlex(leftHtml, rightText){
   row.appendChild(l); row.appendChild(r);
   return row;
 }
-function buildBulletList(bullets){
-  const st=CURRENT_VERSION.style;
+// buildList is the shared bullet-<ul> builder; indent shifts the whole list right for one
+// level of sub-bullets (see newSubBullet() in js/03_model.js -- a bullet's own optional
+// `children` array, resolved/rendered exactly one level deep, never nested further). Every
+// existing call site just calls buildBulletList(bullets) with no indent, unchanged.
+function buildBulletListInner(bullets, st, indent){
   const ul=document.createElement('ul');
-  ul.style.cssText=`margin:${pt(st.gapBullet)} 0 0;padding-left:15px;list-style:none;`;
+  ul.style.cssText=`margin:${pt(st.gapBullet)} 0 0;padding-left:${15+indent}px;list-style:none;`;
   bullets.forEach((b,i)=>{
     const li=document.createElement('li');
-    li.style.cssText=`margin-bottom:${i<bullets.length-1?pt(st.gapBullet):'0'};font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};text-align:${st.bodyAlign};position:relative;`;
+    li.style.cssText=`margin-bottom:${(i<bullets.length-1 || (b.children&&b.children.length))?pt(st.gapBullet):'0'};font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};text-align:${st.bodyAlign};position:relative;`;
     if(st.bulletMarker && st.bulletMarker!=='none'){
       li.style.paddingLeft='14px';
       const marker=document.createElement('span'); marker.textContent=st.bulletMarker; marker.style.cssText='position:absolute;left:0;';
       li.appendChild(marker);
       const txt=document.createElement('span'); txt.innerHTML=renderInlineMarkup(b.text); li.appendChild(txt);
     } else { li.innerHTML=renderInlineMarkup(b.text); }
+    if(b.children && b.children.length) li.appendChild(buildBulletListInner(b.children, st, indent+18));
     ul.appendChild(li);
   });
   return ul;
 }
+function buildBulletList(bullets){
+  return buildBulletListInner(bullets, CURRENT_VERSION.style, 0);
+}
+// A plain (non-positioned) experience entry, unchanged. Positioned entries are flattened into
+// per-position pseudo-items by flattenPositionedItems() before pagination ever sees them --
+// see buildExperiencePositionNode() below and describeSection()'s own experience branch.
 function buildExperienceEntryNode(e){
   const wrap=document.createElement('div');
-  wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${esc(e.tag)})</span>`:''), e.location));
-  wrap.appendChild(buildRowFlex(bd(e.role,'role'), e.dates));
+  const slots = locationDatesSlots(e.location, e.dates);
+  wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${esc(e.tag)})</span>`:''), slots.row1Right));
+  wrap.appendChild(buildRowFlex(bd(e.role,'role'), slots.row2Right));
   if(e.bullets.length) wrap.appendChild(buildBulletList(e.bullets));
+  return wrap;
+}
+// Flattens a list of resolved kind-N entries into pagination-ready items: a plain entry (no
+// `positions`) passes through untouched, exactly today's behavior; a positioned entry expands
+// into one pseudo-item per position, `{__entry, __position, __firstOfEntry}` -- __firstOfEntry
+// is what tells the matching buildItemFn to render the shared header (company/tag for
+// experience) once, glued into the SAME pagination unit as that first position, while every
+// later position of the same entry becomes its own independently-placeable unit (no repeated
+// header) -- this is the actual fix for "a multi-role entry wastes page space by being forced
+// into one unbreakable block."
+function flattenPositionedItems(list){
+  const items = [];
+  list.forEach(entry=>{
+    if(entry.positions && entry.positions.length){
+      entry.positions.forEach((p,i)=> items.push({__entry:entry, __position:p, __firstOfEntry:i===0}));
+    } else {
+      items.push(entry);
+    }
+  });
+  return items;
+}
+function buildExperiencePositionNode(item){
+  if(!item.__position) return buildExperienceEntryNode(item);
+  const wrap=document.createElement('div');
+  const e=item.__entry, p=item.__position;
+  // The location/dates fallback only makes sense on the first position, the one that actually
+  // renders the company row -- a later position has no location row of its own to fall back
+  // into (see this file's own comment on that being an accepted, separate gap), so its own
+  // dates print exactly where they always have.
+  if(item.__firstOfEntry){
+    const slots = locationDatesSlots(p.location||e.location, p.dates);
+    wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${esc(e.tag)})</span>`:''), slots.row1Right));
+    wrap.appendChild(buildRowFlex(bd(p.role,'role'), slots.row2Right));
+  } else {
+    wrap.appendChild(buildRowFlex(bd(p.role,'role'), p.dates));
+  }
+  if(p.bullets && p.bullets.length) wrap.appendChild(buildBulletList(p.bullets));
   return wrap;
 }
 function buildProjectEntryNode(p){
@@ -5327,11 +5957,12 @@ function buildProjectEntryNode(p){
 function buildEducationEntryNode(ed){
   const st=CURRENT_VERSION.style;
   const wrap=document.createElement('div');
-  wrap.appendChild(buildRowFlex(bd(ed.school,'university'), ed.location));
+  const slots = locationDatesSlots(ed.location, ed.dates);
+  wrap.appendChild(buildRowFlex(bd(ed.school,'university'), slots.row1Right));
   const d=document.createElement('div');
   d.style.cssText=`display:flex;justify-content:space-between;font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};`;
   const l=document.createElement('span'); l.textContent=ed.degree;
-  const r=document.createElement('span'); r.textContent=ed.dates;
+  const r=document.createElement('span'); r.textContent=slots.row2Right;
   d.appendChild(l); d.appendChild(r);
   wrap.appendChild(d);
   return wrap;
@@ -5341,9 +5972,95 @@ function buildEducationEntryNode(ed){
 // dates shouldn't render two empty rows above its bullets).
 function buildCustomSectionBodyNode(cs){
   const wrap=document.createElement('div');
-  if(cs.subheading || cs.location) wrap.appendChild(buildRowFlex(cs.subheading?bd(cs.subheading,'company'):'', cs.location||''));
-  if(cs.dates) wrap.appendChild(buildRowFlex('', cs.dates));
+  const slots = locationDatesSlots(cs.location, cs.dates);
+  if(cs.subheading || slots.row1Right) wrap.appendChild(buildRowFlex(cs.subheading?bd(cs.subheading,'role'):'', slots.row1Right));
+  if(slots.row2Right) wrap.appendChild(buildRowFlex('', slots.row2Right));
   wrap.appendChild(cs.contentType==='paragraph' ? buildParagraphNode(cs.text) : buildBulletList(cs.bullets));
+  return wrap;
+}
+// A positioned custom section's own per-position node -- same subheading/dates/location +
+// content shape as buildCustomSectionBodyNode() above (a position IS that same shape, just one
+// of several under a shared heading), no entry-level header to glue on the first one the way
+// experience's company row needs, since the section heading itself already covers that role.
+function buildCustomSectionPositionNode(item){
+  const p = item.__position;
+  const wrap=document.createElement('div');
+  // Mirrors buildExperiencePositionNode()'s own two-row shape: Organization (bold, using the
+  // existing 'company' toggle) + Location on the first row, Subheading (the title/role
+  // equivalent, bold using the existing 'role' toggle) + Dates on the second -- on request,
+  // reusing the Style panel's already-existing Company/Role bold checkboxes rather than adding
+  // dedicated ones just for custom sections. Unlike Experience (where Company lives once at
+  // the entry level, so it's structurally impossible for it to repeat), Organization is
+  // per-position here (different sub-entries can genuinely belong to different orgs) -- so
+  // "show it once, not on every position" is a matter of the user simply leaving Organization
+  // blank on every position after the first, not something enforced by the data shape. The org
+  // row is gated strictly on `p.org` itself (not on the location/dates fallback below)
+  // specifically so a position with no organization set never shows a row with dates floating
+  // on the right and nothing on the left -- it just shows Subheading+Dates directly instead.
+  if(p.org && p.org.trim()){
+    const slots = locationDatesSlots(p.location, p.dates);
+    wrap.appendChild(buildRowFlex(bd(p.org,'company'), slots.row1Right));
+    if(p.subheading || slots.row2Right) wrap.appendChild(buildRowFlex(bd(p.subheading,'role'), slots.row2Right));
+  } else if(p.subheading || p.dates){
+    wrap.appendChild(buildRowFlex(bd(p.subheading,'role'), p.dates||''));
+  }
+  wrap.appendChild(p.contentType==='paragraph' ? buildParagraphNode(p.text) : buildBulletList(p.bullets||[]));
+  return wrap;
+}
+// Publications/Certifications -- real citation-style rendering, not a bullet cramming a URL
+// into prose. The link reuses buildHeaderNode()'s own contact-link treatment (normalizeUrl(),
+// the standard #0563C1 hyperlink blue, opens in a new tab) so a citation's URL looks and
+// behaves exactly like the header's own LinkedIn/GitHub/Portfolio links.
+function buildCitationLinkNode(url, label){
+  const a=document.createElement('a');
+  a.href=normalizeUrl(url); a.target='_blank'; a.rel='noopener';
+  a.textContent=label||url;
+  a.style.cssText='color:#0563C1;text-decoration:underline;';
+  return a;
+}
+function buildPublicationNode(pub){
+  const st=CURRENT_VERSION.style;
+  const wrap=document.createElement('div');
+  const titleLine=document.createElement('div');
+  titleLine.style.cssText=`font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};`;
+  // Bold via the existing 'project' toggle -- a publication's title plays the same
+  // identifying-title role a project's own title does, so it reuses that checkbox rather
+  // than a dedicated one (on request, matching the same "no new checkboxes" approach the
+  // custom-section org/subheading mapping above already established).
+  titleLine.innerHTML=`<span style="font-style:italic;">${bd(pub.title,'project')}</span>`;
+  wrap.appendChild(titleLine);
+  const metaBits=[pub.authors, pub.venue, pub.date].filter(Boolean).join(', ');
+  if(metaBits){
+    const metaLine=document.createElement('div');
+    metaLine.style.cssText=`font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};`;
+    metaLine.textContent=metaBits;
+    wrap.appendChild(metaLine);
+  }
+  if(pub.url){
+    const linkLine=document.createElement('div');
+    linkLine.style.cssText=`font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};`;
+    linkLine.appendChild(buildCitationLinkNode(pub.url, pub.url));
+    wrap.appendChild(linkLine);
+  }
+  if(pub.bullets && pub.bullets.length) wrap.appendChild(buildBulletList(pub.bullets));
+  return wrap;
+}
+function buildCertificationNode(cert){
+  const st=CURRENT_VERSION.style;
+  const wrap=document.createElement('div');
+  const line1=document.createElement('div');
+  line1.style.cssText=`font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};display:flex;justify-content:space-between;`;
+  const l=document.createElement('span'); l.innerHTML=bd(cert.name,'company')+(cert.issuer?' - '+esc(cert.issuer):'');
+  const r=document.createElement('span'); r.textContent=cert.date||'';
+  line1.appendChild(l); line1.appendChild(r);
+  wrap.appendChild(line1);
+  if(cert.credentialId || cert.url){
+    const line2=document.createElement('div');
+    line2.style.cssText=`font-family:${normalizeFontFamily(st.fontFamily)};font-size:${pt(st.fsBody)};line-height:${st.lineHeight};`;
+    if(cert.credentialId){ const span=document.createElement('span'); span.textContent='Credential ID: '+cert.credentialId+(cert.url?'   ':''); line2.appendChild(span); }
+    if(cert.url) line2.appendChild(buildCitationLinkNode(cert.url, 'Verify'));
+    wrap.appendChild(line2);
+  }
   return wrap;
 }
 function buildSkillRowNode(s){
@@ -5365,7 +6082,17 @@ function buildReferenceNode(r){
   wrap.appendChild(n); wrap.appendChild(c);
   return wrap;
 }
-function buildSectionUnits(headingText, items, buildItemFn, glueAllTogether){
+// `token` gives every unit a stable, fully generic id (`${token}:${itemIndex}`) -- positional,
+// not tied to any Library id, since an "item" isn't always a Library-backed object (summary's
+// own "item" is a plain string; a positioned entry's "item" is a synthetic
+// {__entry,__position} pseudo-object, see describeSection()'s own comments). Positional ids are
+// sufficient here because every id is only ever compared within one single, coherent snapshot
+// of resolved data (the same request/render pass), never across two different edits -- see
+// the page-break-detail / preview-export-reconciliation features that consume this id to know
+// which page a given section/entry landed on. The glued heading+first-item unit keeps index 0
+// (it visually represents "this section, starting with its first item"); every unit after it
+// keeps its own original item index, unaffected by the gluing.
+function buildSectionUnits(token, headingText, items, buildItemFn, glueAllTogether){
   if(!items.length) return [];
   const st=CURRENT_VERSION.style;
   const units=[];
@@ -5374,14 +6101,14 @@ function buildSectionUnits(headingText, items, buildItemFn, glueAllTogether){
     wrap.appendChild(buildHeadingNode(headingText));
     wrap.appendChild(spacerEl(st.headingGapBelow));
     items.forEach((it,i)=>{ wrap.appendChild(buildItemFn(it)); if(i<items.length-1) wrap.appendChild(spacerEl(st.gapBullet)); });
-    units.push({node:wrap, gapBefore:st.gapSection});
+    units.push({id:token+':0', node:wrap, gapBefore:st.gapSection});
   } else {
     const firstWrap=document.createElement('div');
     firstWrap.appendChild(buildHeadingNode(headingText));
     firstWrap.appendChild(spacerEl(st.headingGapBelow));
     firstWrap.appendChild(buildItemFn(items[0]));
-    units.push({node:firstWrap, gapBefore:st.gapSection});
-    for(let i=1;i<items.length;i++) units.push({node:buildItemFn(items[i]), gapBefore:st.gapEntry});
+    units.push({id:token+':0', node:firstWrap, gapBefore:st.gapSection});
+    for(let i=1;i<items.length;i++) units.push({id:token+':'+i, node:buildItemFn(items[i]), gapBefore:st.gapEntry});
   }
   return units;
 }
@@ -5390,7 +6117,13 @@ function describeSection(token, resolved){
   // fall back to the exact same default strings blankVersion() ships, same pattern
   // selection.summaryHeading already uses (sel.summaryHeading||'Summary').
   const sh = CURRENT_VERSION.sectionHeadings || {};
-  if(token==='experience') return resolved.experience.length ? {headingText:sh.experience||'Work Experience', items:resolved.experience, buildItemFn:buildExperienceEntryNode, glueAllTogether:false} : null;
+  // flattenPositionedItems() expands any positioned entry into one pseudo-item per position
+  // (see its own comment above) -- a plain, non-positioned entry passes through unchanged, so
+  // this is a no-op for every version that predates positions entirely.
+  if(token==='experience'){
+    const items = flattenPositionedItems(resolved.experience);
+    return items.length ? {headingText:sh.experience||'Work Experience', items, buildItemFn:buildExperiencePositionNode, glueAllTogether:false} : null;
+  }
   if(token==='projects') return resolved.projects.length ? {headingText:sh.projects||'Projects', items:resolved.projects, buildItemFn:buildProjectEntryNode, glueAllTogether:false} : null;
   if(token==='education') return resolved.education.length ? {headingText:sh.education||'Education', items:resolved.education, buildItemFn:buildEducationEntryNode, glueAllTogether:false} : null;
   if(token==='skills') return resolved.skills.length ? {headingText:sh.skills||'Skills', items:resolved.skills, buildItemFn:buildSkillRowNode, glueAllTogether:true} : null;
@@ -5400,10 +6133,23 @@ function describeSection(token, resolved){
     if(CURRENT_VERSION.referencesMode==='full' && resolved.references.length) return {headingText:sh.references||'References', items:resolved.references, buildItemFn:buildReferenceNode, glueAllTogether:false};
     return null;
   }
+  // Real, first-class peers of the original 5 -- glueAllTogether:false like
+  // experience/projects/education, so N publications/certifications aren't forced into one
+  // unbreakable block either.
+  if(token==='publications') return resolved.publications.length ? {headingText:sh.publications||'Publications', items:resolved.publications, buildItemFn:buildPublicationNode, glueAllTogether:false} : null;
+  if(token==='certifications') return resolved.certifications.length ? {headingText:sh.certifications||'Certifications', items:resolved.certifications, buildItemFn:buildCertificationNode, glueAllTogether:false} : null;
   if(token.indexOf('custom:')===0){
     const refId = token.slice(7);
     const cs = resolved.customSections.find(c=>c.id===refId);
     if(!cs) return null;
+    // A positioned custom section flows each position independently (like experience) --
+    // there's no shared "company"-style header to glue on the first position here (a custom
+    // section's heading already covers that role), so buildCustomSectionPositionNode() never
+    // needs the __firstOfEntry branch buildExperiencePositionNode() does.
+    if(cs.positions && cs.positions.length){
+      const items = cs.positions.map((p,i)=>({__entry:cs, __position:p, __firstOfEntry:i===0}));
+      return {headingText: cs.heading||'Untitled', items, buildItemFn:buildCustomSectionPositionNode, glueAllTogether:false};
+    }
     if(cs.contentType==='paragraph'){ if(!cs.text || !cs.text.trim()) return null; }
     else if(!cs.bullets.length) return null;
     return {headingText: cs.heading||'Untitled', items:[cs], buildItemFn:buildCustomSectionBodyNode, glueAllTogether:true};
@@ -5420,13 +6166,13 @@ function paginate(){
   const usableHeightPx = (pageInches.h - marginTop - marginBottom) * 96;
 
   let units = [];
-  units.push({node: buildHeaderNode(), gapBefore:0});
+  units.push({id:'header', node: buildHeaderNode(), gapBefore:0});
   if(resolved.summary && resolved.summary.trim()){
-    units = units.concat(buildSectionUnits(resolved.summaryHeading||'Summary', [resolved.summary], buildParagraphNode, true));
+    units = units.concat(buildSectionUnits('summary', resolved.summaryHeading||'Summary', [resolved.summary], buildParagraphNode, true));
   }
   resolveSectionOrder(CURRENT_VERSION).forEach(token=>{
     const d = describeSection(token, resolved);
-    if(d) units = units.concat(buildSectionUnits(d.headingText, d.items, d.buildItemFn, d.glueAllTogether));
+    if(d) units = units.concat(buildSectionUnits(token, d.headingText, d.items, d.buildItemFn, d.glueAllTogether));
   });
 
   const host = document.getElementById('measureHost');
@@ -5437,11 +6183,47 @@ function paginate(){
 
   const packed = packUnits(units.map((u,i)=>({height:heights[i], gapBefore:u.gapBefore*PT2PX})), applyPrintSafety(usableHeightPx));
 
+  // PAGE_UNIT_MAP/PAGE_FILL_RATIOS -- the shared foundation both the MCP page-break-detail
+  // tool and the preview/export reconciliation feature read after paginate() runs. Fill ratio
+  // is measured against the TRUE usableHeightPx (not the safety-shrunk capacity packUnits()
+  // itself just packed against), since it's meant to answer "how physically full is this page,
+  // really" for risk detection -- packing against the shrunk capacity already leaves every
+  // page's *measured* content under 100% of the true height by construction, so a page whose
+  // measured content is itself close to the true 100% is the one genuinely at risk of a
+  // screen-vs-print measurement gap tipping it over, and the one worth a real server check.
+  window.PAGE_UNIT_MAP = packed.map(indices => indices.map(idx => units[idx].id));
+  window.PAGE_FILL_RATIOS = packed.map(indices => {
+    const contentHeight = indices.reduce((sum, idx, j) => sum + heights[idx] + (j>0 ? units[idx].gapBefore*PT2PX : 0), 0);
+    return contentHeight / usableHeightPx;
+  });
+  // scheduleLayoutReconciliation()'s own inputs -- kept off `units` itself (which holds live
+  // DOM nodes about to be moved into #pagesWrap below, not serializable) so the reconciliation
+  // step can rebuild its /measure request, and rebuild #pagesWrap from the server's own answer,
+  // without re-running paginate() a second time or holding a stale reference to nodes that may
+  // already be attached elsewhere by the time it actually runs.
+  window.PAGE_UNITS_BY_ID = {};
+  units.forEach(u => { window.PAGE_UNITS_BY_ID[u.id] = { html: u.node.outerHTML, gapBefore: u.gapBefore*PT2PX }; });
+  window.PAGE_LAYOUT_METRICS = { usableWidthPx, usableHeightPx, pageInches, marginTop, marginRight, marginBottom, marginLeft, unitOrder: units.map(u=>u.id) };
+
   const pagesWrap = document.getElementById('pagesWrap');
   pagesWrap.innerHTML='';
   packed.forEach(indices=>{
     const paper=document.createElement('div');
     paper.className='paper'+(CURRENT_VERSION.pageSize==='Letter'?' letter':'');
+    // A real, reported gap: .paper had no explicit height in css/style.css at all -- it only
+    // ever grew tall enough to fit whatever content packUnits() put on it, so a page that's
+    // only, say, 65% full looked like a normal, complete page in the live preview (the box
+    // just ends where the content ends, no visible boundary past that). The exported PDF
+    // (pdf-service's page.pdf(), called with pageInches's own real width/height) always
+    // renders a genuine fixed physical page regardless of content, so that same 35% of unused
+    // capacity shows up there as a visible blank gap -- a real discrepancy between what the
+    // live preview implied and what actually printed, not a bug in the export itself. Setting
+    // the exact same pageInches.h used for both the packing decision and the PDF/DOCX page
+    // size here means the live preview now honestly shows a page's true physical boundary --
+    // including any leftover blank space -- so a genuinely underfull page is visible and
+    // fixable (tighter margins, a bigger font, more content) before ever downloading, instead
+    // of only being discovered after the fact.
+    paper.style.height = pageInches.h+'in';
     const inner=document.createElement('div');
     inner.className='paper-inner';
     inner.style.padding=`${marginTop}in ${marginRight}in ${marginBottom}in ${marginLeft}in`;
@@ -5462,7 +6244,108 @@ function renderPreview(){
   paginate();
   wrapPagesForZoom('pagesWrap');
   applyPreviewZoom('pagesWrap', 'editor');
+  scheduleLayoutReconciliation();
 }
+function setLayoutReconciliationStatus(status){
+  const el = document.getElementById('layoutReconcileStatus');
+  if(!el) return;
+  el.classList.remove('corrected');
+  if(status==='checking'){ el.hidden=false; el.textContent='Confirming layout…'; }
+  else if(status==='corrected'){ el.hidden=false; el.classList.add('corrected'); el.textContent='Layout corrected to match the real export'; }
+  else { el.hidden=true; el.textContent=''; }
+}
+// Rebuilds #pagesWrap from a server-confirmed, authoritative page grouping (an array of pages,
+// each an array of unit ids -- exactly window.PAGE_UNIT_MAP's own shape) -- the disagreement
+// branch of scheduleLayoutReconciliation() below. Mirrors paginate()'s own page-building loop
+// exactly (same .paper/.paper-inner structure, same margins/page size), just sourcing each
+// unit's content from the HTML string snapshot PAGE_UNITS_BY_ID already holds instead of a live
+// DOM node reference, since the server's grouping can reorder/regroup which page a unit landed
+// on relative to whatever paginate() last built.
+function rebuildPagesFromAuthoritativeLayout(pages){
+  const metrics = window.PAGE_LAYOUT_METRICS;
+  const unitsById = window.PAGE_UNITS_BY_ID;
+  if(!metrics || !unitsById) return;
+  const { pageInches, marginTop, marginRight, marginBottom, marginLeft } = metrics;
+  const pagesWrap = document.getElementById('pagesWrap');
+  if(!pagesWrap) return;
+  pagesWrap.innerHTML='';
+  pages.forEach(unitIds=>{
+    const paper=document.createElement('div');
+    paper.className='paper'+(CURRENT_VERSION.pageSize==='Letter'?' letter':'');
+    paper.style.height = pageInches.h+'in';
+    const inner=document.createElement('div');
+    inner.className='paper-inner';
+    inner.style.padding=`${marginTop}in ${marginRight}in ${marginBottom}in ${marginLeft}in`;
+    unitIds.forEach((id,j)=>{
+      const u = unitsById[id];
+      if(!u) return;
+      if(j>0) inner.appendChild(spacerEl(u.gapBefore));
+      const temp=document.createElement('div');
+      temp.innerHTML = u.html;
+      inner.appendChild(temp.firstElementChild || temp);
+    });
+    paper.appendChild(inner);
+    pagesWrap.appendChild(paper);
+  });
+  window.PAGE_UNIT_MAP = pages;
+  CURRENT_VERSION.pageCount = pages.length || 1;
+  const badge = document.getElementById('pageBadge');
+  if(badge) badge.textContent = CURRENT_VERSION.pageCount+(CURRENT_VERSION.pageCount>1?' pages':' page');
+  wrapPagesForZoom('pagesWrap');
+  applyPreviewZoom('pagesWrap', 'editor');
+}
+// The risk-based reconciliation itself -- see CLAUDE.md's own section on this for the full
+// design reasoning (why this exists, why it's debounced, why it only ever calls the server for
+// pages actually at risk). Debounced, not run on every keystroke: paginate() itself stays
+// instant and purely local for every render; this only ever fires a network request once
+// typing has settled AND at least one page is close enough to full that the known
+// screen-vs-print measurement gap could plausibly change the real outcome.
+var scheduleLayoutReconciliation = debounce(async function(){
+  if(VIEW!=='editor' || !CURRENT_VERSION) return;
+  if(!window.PAGE_FILL_RATIOS || !window.PAGE_UNIT_MAP) return;
+  const risky = pagesAtRisk(window.PAGE_FILL_RATIOS);
+  if(!risky.length){ setLayoutReconciliationStatus(null); return; }
+
+  // Captured up front so a stale, still-in-flight response from an edit that's since been
+  // superseded (a different version opened, or the same version edited again before this
+  // resolves) can be detected and discarded below, rather than clobbering newer, already-correct
+  // local state with an outdated answer.
+  const versionId = CURRENT_VERSION.id;
+  const metrics = window.PAGE_LAYOUT_METRICS;
+  const unitsById = window.PAGE_UNITS_BY_ID;
+  if(!metrics || !unitsById) return;
+  const requestUnits = metrics.unitOrder.map(id=>({ id, html: unitsById[id].html, gapBefore: unitsById[id].gapBefore }));
+
+  setLayoutReconciliationStatus('checking');
+  try{
+    const { data: { session } } = await window.supabase.auth.getSession();
+    if(!session){ setLayoutReconciliationStatus(null); return; }
+    const measureUrl = window.PDF_SERVICE_URL.replace(/\/render$/, '/measure');
+    const resp = await window.fetch(measureUrl, {
+      method:'POST',
+      headers: { 'Content-Type':'application/json', Authorization:'Bearer '+session.access_token },
+      body: JSON.stringify({ units: requestUnits, usableWidthPx: metrics.usableWidthPx, usableHeightPx: metrics.usableHeightPx }),
+    });
+    // A failed check (network error, rate-limited, server down) is not itself surfaced as an
+    // error -- local pagination is still the best available answer, and the next debounced
+    // check (the very next edit, or a later re-render) gets another chance to verify it.
+    if(!resp.ok){ setLayoutReconciliationStatus(null); return; }
+    const body = await resp.json();
+    if(!body.ok || !Array.isArray(body.pages)){ setLayoutReconciliationStatus(null); return; }
+
+    if(!CURRENT_VERSION || CURRENT_VERSION.id!==versionId) return; // a different version is open now
+    // Compare against PAGE_UNIT_MAP's *current* value, not one captured before the await --
+    // a newer paginate() run may have already superseded what this request was originally
+    // checking, and that newer local state is what should win, not this now-stale answer.
+    const agrees = JSON.stringify(body.pages)===JSON.stringify(window.PAGE_UNIT_MAP);
+    if(agrees){ setLayoutReconciliationStatus(null); return; }
+
+    rebuildPagesFromAuthoritativeLayout(body.pages);
+    setLayoutReconciliationStatus('corrected');
+  }catch(e){
+    setLayoutReconciliationStatus(null);
+  }
+}, 800);
 
 /* ===== exports ===== */
 // Builds a small, fully self-contained HTML document from the *already-paginated* live
@@ -6020,6 +6903,10 @@ async function init(){
   document.getElementById('btnTopbarClose').innerHTML = ICONS.close;
   document.getElementById('btnHelpAuthed').innerHTML = ICONS.help;
   document.getElementById('btnHelpOut').innerHTML = ICONS.help;
+  document.getElementById('btnStatusAuthed').innerHTML = ICONS.status;
+  document.getElementById('btnStatusOut').innerHTML = ICONS.status;
+  document.getElementById('btnFeaturesAuthed').innerHTML = ICONS.features;
+  document.getElementById('btnFeaturesOut').innerHTML = ICONS.features;
   renderThemeToggle();
   document.getElementById('btnZoomOut').addEventListener('click', ()=> stepZoom('editor','pagesWrap',-0.1));
   document.getElementById('btnZoomIn').addEventListener('click', ()=> stepZoom('editor','pagesWrap',0.1));

@@ -64,4 +64,22 @@ function applyPrintSafety(usableHeightPx){
   return usableHeightPx * PAGE_PRINT_SAFETY_FACTOR;
 }
 
-if(typeof module !== 'undefined') module.exports = { packUnits, glueHeadings, applyPrintSafety, PAGE_PRINT_SAFETY_FACTOR };
+/* Which pages, out of paginate()'s own per-page fill ratios (content height / true usable
+   height -- see paginate()'s own PAGE_FILL_RATIOS comment, js/06_app.js), are close enough to
+   full that a real screen-vs-print measurement gap could plausibly tip them over the true page
+   boundary -- and so are worth a real server-side verification pass rather than trusting the
+   local, in-browser measurement blindly. The threshold (0.90 by default) is deliberately well
+   above the known historical screen-vs-print variance (~3-5%, the same gap
+   PAGE_PRINT_SAFETY_FACTOR exists for) -- a page comfortably under it has enough headroom that
+   even that variance can't push its real content past the true page height, so it's safe to
+   trust without ever paying for a round trip. Returns page indices (0-based, into the same
+   array PAGE_UNIT_MAP/PAGE_FILL_RATIOS use), not the ratios themselves. */
+const PAGE_RISK_THRESHOLD = 0.90;
+function pagesAtRisk(fillRatios, threshold){
+  const t = threshold==null ? PAGE_RISK_THRESHOLD : threshold;
+  const out = [];
+  for(let i=0;i<fillRatios.length;i++) if(fillRatios[i] >= t) out.push(i);
+  return out;
+}
+
+if(typeof module !== 'undefined') module.exports = { packUnits, glueHeadings, applyPrintSafety, PAGE_PRINT_SAFETY_FACTOR, pagesAtRisk, PAGE_RISK_THRESHOLD };

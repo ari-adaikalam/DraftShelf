@@ -8,7 +8,7 @@
    Kinds are always processed in this order -- skillGroups depends on skills having already
    been reconciled in the same applyImportReview() call, since a skill set's categoryIds
    need remapping through the skills remap table built one step earlier. */
-const IMPORT_REVIEW_KINDS = ['experience','projects','education','skills','skillGroups','summaries','references','customSections'];
+const IMPORT_REVIEW_KINDS = ['experience','projects','education','skills','skillGroups','summaries','references','customSections','publications','certifications'];
 // summaries:'text' -- not 'label'. Summaries no longer have a label field at all (replaced by
 // the shared tags[] system, see newLibraryEntry('summaries') in js/03_model.js); the only
 // remaining identifying content is the summary's own text, so that's what an incoming summary
@@ -16,7 +16,8 @@ const IMPORT_REVIEW_KINDS = ['experience','projects','education','skills','skill
 // other kind here).
 const IMPORT_REVIEW_MATCH_FIELD = {
   experience:'company', projects:'title', education:'school', skills:'label',
-  skillGroups:'label', summaries:'text', references:'name', customSections:'heading'
+  skillGroups:'label', summaries:'text', references:'name', customSections:'heading',
+  publications:'title', certifications:'name'
 };
 // Fixed allowlist for buildImportReview()'s header/meta diffing below -- library.meta's own
 // shape (see emptyLibrary() in 03_model.js) has exactly these 7 keys. Without this, an
@@ -26,10 +27,19 @@ const IMPORT_REVIEW_MATCH_FIELD = {
 // nothing else in the app expects.
 const IMPORT_REVIEW_META_ALLOWLIST = ['name','phone','email','location','linkedin','github','portfolio'];
 // Kinds/entries that carry bullets worth reviewing one-by-one when merged into an existing
-// entry -- customSections only when contentType is 'bullets' (a paragraph section has none).
+// entry -- customSections only when contentType is 'bullets' (a paragraph section has none);
+// publications only when the incoming entry actually has any (its bullets are optional, an
+// abstract/description note, not guaranteed present); certifications never has bullets at all.
+// A positioned incoming experience/customSections entry (entry.positions present) is a
+// deliberate, documented scope boundary here, same as Skill Sets' own "visibility scoped, not
+// fully generalized" precedent -- positions themselves aren't reconciled item-by-item on
+// merge; a "new" entry still copies its whole `positions` array through verbatim via
+// copyEntryFields() below, it's only the per-bullet merge-review UI that doesn't look inside
+// them.
 function importReviewEntryHasBullets(kind, entry){
   if(kind==='experience' || kind==='projects') return true;
   if(kind==='customSections') return entry.contentType==='bullets';
+  if(kind==='publications') return !!(entry.bullets && entry.bullets.length);
   return false;
 }
 function matchKey(v){ return (v||'').trim().toLowerCase(); }

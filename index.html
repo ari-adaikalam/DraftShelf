@@ -42,17 +42,17 @@
 <meta property="og:site_name" content="DraftShelf">
 <meta property="og:title" content="DraftShelf - Tailor the content. DraftShelf handles the rest.">
 <meta property="og:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes - free, no exceptions.">
-<meta property="og:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
+<meta property="og:image" content="https://draftshelf.app/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:url" content="https://ariharasudhan.com/draftshelf/">
+<meta property="og:url" content="https://draftshelf.app/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="DraftShelf - Tailor the content. DraftShelf handles the rest.">
 <meta name="twitter:description" content="Keep every job, project, and bullet point in one library. Build a tailored, ATS-friendly resume for every application in minutes - free, no exceptions.">
-<meta name="twitter:image" content="https://ariharasudhan.com/draftshelf/assets/og-image.png">
-<link rel="icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
-<link rel="shortcut icon" type="image/png" href="/draftshelf/assets/draftshelf-icon.png?v=2">
-<link rel="apple-touch-icon" href="/draftshelf/assets/draftshelf-icon.png?v=2">
+<meta name="twitter:image" content="https://draftshelf.app/assets/og-image.png">
+<link rel="icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="assets/draftshelf-icon.png?v=2">
 <!-- Real, reported gap: even after fixing the topbar flash and deferring jsPDF/docx.js, a
      visible ~1s gap remained before the actual landing page/dashboard content appears -- real
      network time, not a rendering issue: the Supabase client has to be fetched from a CDN
@@ -121,7 +121,9 @@
     </div>
     <div class="gh-status">
       <span id="saveStatusText" class="save-status-text ok" title="Library and version edits autosave to your account a moment after you stop typing.">All changes saved</span>
-      <a class="theme-toggle" href="help.html" target="_blank" rel="noopener" title="Help &amp; FAQ" aria-label="Help &amp; FAQ" id="btnHelpAuthed"></a>
+      <a class="theme-toggle" href="help.html" title="Help &amp; FAQ" aria-label="Help &amp; FAQ" id="btnHelpAuthed"></a>
+      <a class="theme-toggle" href="status.html" title="Status" aria-label="Status" id="btnStatusAuthed"></a>
+      <a class="theme-toggle" href="features.html" title="Features" aria-label="Features" id="btnFeaturesAuthed"></a>
       <button class="theme-toggle" id="btnThemeToggle" data-role="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
       <button class="btn btn-ghost btn-sm" id="btnImportResume">Import Resume</button>
       <input type="file" id="importFileInput" accept="application/json" style="display:none;">
@@ -158,7 +160,9 @@
        -- init() -> loadAuthedAppState()/showSignedOutState() (js/06_app.js) reveals whichever
        one actually applies once it knows. -->
   <div id="topbarSignedOut" style="display:none;flex:1;align-items:center;justify-content:flex-end;gap:10px;">
-    <a class="theme-toggle" href="help.html" target="_blank" rel="noopener" title="Help &amp; FAQ" aria-label="Help &amp; FAQ" id="btnHelpOut"></a>
+    <a class="theme-toggle" href="help.html" title="Help &amp; FAQ" aria-label="Help &amp; FAQ" id="btnHelpOut"></a>
+    <a class="theme-toggle" href="status.html" title="Status" aria-label="Status" id="btnStatusOut"></a>
+    <a class="theme-toggle" href="features.html" title="Features" aria-label="Features" id="btnFeaturesOut"></a>
     <button class="theme-toggle" id="btnThemeToggleOut" data-role="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
     <button class="btn btn-ghost btn-sm" id="btnTopbarSignIn">Sign in</button>
     <button class="btn btn-brass btn-sm" id="btnTopbarSignUp">Create account</button>
@@ -206,15 +210,17 @@
 
 <div class="view" id="viewLibrary" tabindex="-1">
   <div class="lib-tabs" id="libTabs">
+    <button data-kind="meta">Header</button>
+    <button data-kind="tagOptions">Tags</button>
+    <button data-kind="summaries">Summaries</button>
     <button data-kind="experience" class="active">Experience</button>
     <button data-kind="projects">Projects</button>
     <button data-kind="education">Education</button>
     <button data-kind="skills">Skills</button>
-    <button data-kind="summaries">Summaries</button>
+    <button data-kind="publications">Publications</button>
+    <button data-kind="certifications">Certifications</button>
     <button data-kind="references">References</button>
     <button data-kind="customSections">Custom Sections</button>
-    <button data-kind="tagOptions">Tags</button>
-    <button data-kind="meta">Header</button>
   </div>
   <div id="libPanels"></div>
 </div>
@@ -235,6 +241,7 @@
       <div class="stage-controls">
         <div><button class="btn btn-ghost btn-sm" id="btnBackDash">&larr; Dashboard</button></div>
         <div class="page-badge" id="pageBadge"></div>
+        <div class="layout-reconcile-status" id="layoutReconcileStatus" hidden></div>
         <div class="zoom-controls">
           <button id="btnZoomOut" title="Zoom out">&minus;</button>
           <button id="btnZoomFit" class="zoom-fit-btn active" title="Fit to width">Fit</button>

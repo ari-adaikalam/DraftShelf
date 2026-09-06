@@ -45,20 +45,45 @@ function isLikelyLabelNotUrl(v){
   return typeof v==='string' && v.trim()!=='' && v.indexOf('.')===-1;
 }
 function clamp(n,min,max){ n=parseFloat(n); if(isNaN(n)) n=min; return Math.min(max,Math.max(min,n)); }
+// A resume line's own "Location" slot commonly sits alone, right-aligned on the same row as
+// its name (Company/School/Organization/Subheading), with Dates right-aligned on the row
+// below. On request: when Location is left blank, Dates fills that same first-row slot
+// instead of leaving it empty -- and the second row's own trailing slot (which normally shows
+// Dates) is left blank in that case, so Dates only ever prints once, wherever it actually
+// landed, never twice. Shared by every entry kind with this exact row-pair shape -- Experience
+// (flat and positioned), Education, and Custom Sections (flat and positioned) -- across the
+// live preview/PDF (js/06_app.js) and DOCX export (js/05_export_docx.js) alike, so the two
+// stay in lockstep by construction rather than by two independently-maintained copies.
+function locationDatesSlots(location, dates){
+  const hasLocation = !!(location && String(location).trim());
+  return {
+    row1Right: hasLocation ? location : (dates||''),
+    row2Right: hasLocation ? (dates||'') : ''
+  };
+}
 function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 function hasMetric(text){ return /\d/.test(text||''); }
+// Inline **bold**/*italic*/***both*** markup within a single bullet/paragraph's own text --
+// on request ("what if i want to bold or italic a specific word in a bullet"). The alternation
+// tries the 3-star (bold+italic together) and 2-star (bold) forms before the bare 1-star form,
+// at each position, so a run like ***word*** is never misread as ** followed by a stray *.
+// Segments keep both flags (rather than a single "style" enum) so a caller never needs a
+// third code path beyond the existing bold-only one -- renderInlineMarkup() (js/06_app.js) and
+// the DOCX exporters just check each flag independently and wrap/set accordingly.
 function parseInlineBold(text){
   const s = text==null ? '' : String(text);
   const segments = [];
-  const re = /\*\*(.+?)\*\*/g;
+  const re = /\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*/g;
   let last = 0, m;
   while((m = re.exec(s))){
-    if(m.index > last) segments.push({ text: s.slice(last, m.index), bold:false });
-    segments.push({ text: m[1], bold:true });
+    if(m.index > last) segments.push({ text: s.slice(last, m.index), bold:false, italic:false });
+    if(m[1]!=null) segments.push({ text: m[1], bold:true, italic:true });
+    else if(m[2]!=null) segments.push({ text: m[2], bold:true, italic:false });
+    else segments.push({ text: m[3], bold:false, italic:true });
     last = re.lastIndex;
   }
-  if(last < s.length) segments.push({ text: s.slice(last), bold:false });
-  if(!segments.length) segments.push({ text:'', bold:false });
+  if(last < s.length) segments.push({ text: s.slice(last), bold:false, italic:false });
+  if(!segments.length) segments.push({ text:'', bold:false, italic:false });
   return segments;
 }
 function b64EncodeUnicode(str){
@@ -94,4 +119,4 @@ var KV = {
   }
 };
 
-if(typeof module !== 'undefined') module.exports = { uid, esc, getPath, setPath, normalizeUrl, isLikelyLabelNotUrl, stripEmDash, looksLikeResumitExport, clamp, debounce, hasMetric, parseInlineBold, b64EncodeUnicode, b64DecodeUnicode, KV };
+if(typeof module !== 'undefined') module.exports = { uid, esc, getPath, setPath, normalizeUrl, isLikelyLabelNotUrl, stripEmDash, looksLikeResumitExport, clamp, locationDatesSlots, debounce, hasMetric, parseInlineBold, b64EncodeUnicode, b64DecodeUnicode, KV };

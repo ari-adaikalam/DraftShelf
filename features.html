@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Features - DraftShelf</title>
+<meta name="description" content="Every DraftShelf feature, briefly, in one place.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DraftShelf">
+<meta property="og:title" content="Features - DraftShelf">
+<meta property="og:description" content="Every DraftShelf feature, briefly, in one place.">
+<link rel="icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="shortcut icon" type="image/png" href="assets/draftshelf-icon.png?v=2">
+<link rel="apple-touch-icon" href="assets/draftshelf-icon.png?v=2">
+<style>
+  /* Same [data-theme] token system as help.html/privacy.html/terms.html/status.html/css/style.css. */
+  :root{ --accent:#B8860B; --accent-dark:#8B6508; }
+  [data-theme="dark"]{
+    --bg:#0a0908; --surface:#17140d; --surface-hover:#1f1a10; --text:#FFFFFF; --text-muted:#b8ab8f;
+    --border:rgba(184,134,11,0.18);
+  }
+  [data-theme="light"]{
+    --bg:#FBF9F5; --surface:#FFFFFF; --surface-hover:#F5F1E8; --text:#1a1712; --text-muted:#6b6455;
+    --border:rgba(184,134,11,0.32);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Arial,sans-serif;line-height:1.6;}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 32px 80px;}
+  .page-top{display:flex;align-items:center;justify-content:space-between;}
+  .brand{display:flex;align-items:center;margin-bottom:8px;text-decoration:none;}
+  .brand img{height:26px;width:auto;flex:none;object-fit:contain;}
+  .brand img.logo-dark{display:none;}
+  [data-theme="dark"] .brand img.logo-light{display:none;}
+  [data-theme="dark"] .brand img.logo-dark{display:inline;}
+  .theme-toggle-standalone{background:none;border:1px solid var(--border);border-radius:20px;width:34px;height:34px;font-size:15px;cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center;flex:none;}
+  .theme-toggle-standalone:hover{background:var(--surface-hover);}
+  h1{font-size:24px;margin:24px 0 24px;}
+
+  .quicknav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:36px;}
+  .quicknav a{font-size:12px;font-weight:600;color:var(--accent-dark);text-decoration:none;border:1px solid var(--border);border-radius:20px;padding:5px 12px;}
+  .quicknav a:hover{background:var(--surface-hover);}
+
+  h2{font-size:15px;margin:0 0 10px;padding-top:20px;border-top:1px solid var(--border);scroll-margin-top:16px;}
+  section:first-of-type h2{border-top:none;padding-top:0;}
+  section{margin-bottom:4px;}
+
+  .flist{display:flex;flex-direction:column;gap:1px;margin-bottom:16px;}
+  .fitem{display:grid;grid-template-columns:190px 1fr;gap:14px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .fitem dt{font-size:13px;font-weight:700;}
+  .fitem dd{margin:0;font-size:13px;color:var(--text-muted);}
+  @media (max-width:600px){ .fitem{grid-template-columns:1fr;gap:2px;} }
+
+</style>
+<script>
+(function(){
+  var stored = null;
+  try{ stored = JSON.parse(localStorage.getItem('rf:ui:theme')); }catch(e){}
+  var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+</script>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-top">
+    <a class="brand" href="index.html" title="Back to DraftShelf"><img class="logo-light" src="assets/draftshelf-logo.png" alt="DraftShelf"><img class="logo-dark" src="assets/draftshelf-logo-dark.png" alt="DraftShelf"></a>
+    <button class="theme-toggle-standalone" id="btnThemeToggleStandalone" title="Toggle theme" aria-label="Toggle theme">&#9788;</button>
+  </div>
+  <h1>Features</h1>
+
+  <div class="quicknav">
+    <a href="#library">Library</a>
+    <a href="#versions">Versions</a>
+    <a href="#style-export">Style &amp; export</a>
+    <a href="#account">Account</a>
+    <a href="#ai">AI assistant</a>
+  </div>
+
+  <section id="library">
+    <h2>Library - everything you've ever done, in one place</h2>
+    <dl class="flist">
+      <div class="fitem"><dt>Experience, Projects, Education</dt><dd>Add once in the Library tab. Every field has a "Used in N versions" note so you can see the impact before editing it.</dd></div>
+      <div class="fitem"><dt>Skills, Skill Sets</dt><dd>Individual skill categories, plus named bundles of them (e.g. "Data role") you can pick as a group when building a version.</dd></div>
+      <div class="fitem"><dt>Summaries, References, Custom Sections</dt><dd>A pool of reusable summary paragraphs, references, and any extra section (Certifications-style, Publications-style, or your own).</dd></div>
+      <div class="fitem"><dt>Publications, Certifications</dt><dd>Dedicated, citation-style Library kinds with their own fields (authors/venue, issuer/credential ID).</dd></div>
+      <div class="fitem"><dt>Positions</dt><dd>Add multiple roles under one Experience entry, or multiple sub-entries under one Custom Section - each with its own dates and bullets, each independently include/excludable per version.</dd></div>
+      <div class="fitem"><dt>Sub-bullets</dt><dd>One level of indented bullets under any bullet, for supporting detail.</dd></div>
+      <div class="fitem"><dt>Bullet &amp; position reordering</dt><dd>Move-up/move-down arrows next to every bullet, sub-bullet, and position - in the Library, the editor checklist, or the entry-edit modal.</dd></div>
+      <div class="fitem"><dt>Tags</dt><dd>A shared, renameable label pool (Settings-managed) applied to bullets and skill categories - the basis for "Fill in with tag" below.</dd></div>
+    </dl>
+  </section>
+
+  <section id="versions">
+    <h2>Versions - one tailored resume per job</h2>
+    <dl class="flist">
+      <div class="fitem"><dt>Create / duplicate / delete</dt><dd>A version is a selection from your Library plus its own style - nothing is copied, everything updates if the Library entry changes.</dd></div>
+      <div class="fitem"><dt>Selection checklist</dt><dd>Check which entries, bullets, and positions print, and reorder them - the order here is the print order.</dd></div>
+      <div class="fitem"><dt>Fill in with tag</dt><dd>Instantly include everything tagged for a specific role, plus switch to a summary/skill set carrying that tag.</dd></div>
+      <div class="fitem"><dt>Only-this-version overrides</dt><dd>Freeze one field, one bullet, or one position's wording for a single version - from the entry-edit modal's "Save changes to" choice - without touching the shared Library.</dd></div>
+      <div class="fitem"><dt>Section order &amp; headings</dt><dd>Reorder whole sections and rename their printed heading, per version.</dd></div>
+      <div class="fitem"><dt>Standalone versions</dt><dd>Import a resume file as a fully separate, private version with its own embedded content - doesn't touch or read from your shared Library.</dd></div>
+      <div class="fitem"><dt>Trash</dt><dd>A deleted version stays recoverable (Dashboard → Trash) until you restore it or empty the trash yourself.</dd></div>
+      <div class="fitem"><dt>Undo / redo</dt><dd>Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z work in the Library and the Editor.</dd></div>
+    </dl>
+  </section>
+
+  <section id="style-export">
+    <h2>Style &amp; export</h2>
+    <dl class="flist">
+      <div class="fitem"><dt>Style panel</dt><dd>Font (Times, Arial, Georgia, Calibri, Cambria, Garamond, Computer Modern), sizes, margins, bullet marker, page size, and per-field bold/italic toggles.</dd></div>
+      <div class="fitem"><dt>Inline **bold**/*italic*</dt><dd>Wrap any word in a bullet with `**word**` or `*word*` to format just that word.</dd></div>
+      <div class="fitem"><dt>Live preview</dt><dd>An accurate, paginated, zoomable preview - what you see is genuinely what the export produces.</dd></div>
+      <div class="fitem"><dt>Download PDF / DOCX</dt><dd>Real vector-text exports (selectable, ATS-readable) - not screenshots.</dd></div>
+      <div class="fitem"><dt>Cover Letter</dt><dd>A separate, quick cover-letter builder (Modern/Classic/Minimal looks) with its own PDF export.</dd></div>
+    </dl>
+  </section>
+
+  <section id="account">
+    <h2>Account</h2>
+    <dl class="flist">
+      <div class="fitem"><dt>Preferences</dt><dd>Account-wide defaults (style, section order, references mode) applied automatically to every new version.</dd></div>
+      <div class="fitem"><dt>Import Resume</dt><dd>Paste your existing resume into an AI chatbot using the built-in prompt, then bring the result in - Replace everything, Review &amp; merge, or import as a Standalone version.</dd></div>
+      <div class="fitem"><dt>Export Shelf</dt><dd>Download a full backup of your account (Library + all versions) as JSON, from Settings.</dd></div>
+      <div class="fitem"><dt>GitHub Backup</dt><dd>Connect a GitHub repo (Settings) for an automatic, one-way push of your Library and versions after every save.</dd></div>
+      <div class="fitem"><dt>Theme</dt><dd>Light/dark toggle in the topbar - the choice follows you across the app and these help/status pages.</dd></div>
+      <div class="fitem"><dt>Change password, sign-in options</dt><dd>Email/password, Google, or GitHub sign-in; change your password from Settings at any time.</dd></div>
+    </dl>
+  </section>
+
+  <section id="ai">
+    <h2>AI assistant (MCP)</h2>
+    <dl class="flist">
+      <div class="fitem"><dt>Connected Apps</dt><dd>Connect Claude Code, Claude Desktop, or another MCP-compatible AI tool directly to your account (Settings → Connected Apps).</dd></div>
+      <div class="fitem"><dt>Edit by conversation</dt><dd>Once connected, ask your AI assistant to read your Library, add bullets, tailor a version, or export a PDF - changes show up in the real app immediately.</dd></div>
+      <div class="fitem"><dt>Page-layout awareness</dt><dd>Your assistant can check exactly which section landed on which page before or after trimming content, instead of guessing.</dd></div>
+    </dl>
+  </section>
+
+</div>
+<script>
+(function(){
+  var btn = document.getElementById('btnThemeToggleStandalone');
+  function paintIcon(){ btn.innerHTML = document.documentElement.getAttribute('data-theme')==='dark' ? '&#9789;' : '&#9788;'; }
+  paintIcon();
+  btn.addEventListener('click', function(){
+    var next = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try{ localStorage.setItem('rf:ui:theme', JSON.stringify(next)); }catch(e){}
+    paintIcon();
+  });
+})();
+</script>
+<!-- Vercel Web Analytics / Speed Insights -- see index.html's own comment on this same pair
+     of tags for why this is the plain-HTML form and why the paths are absolute. -->
+<script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
