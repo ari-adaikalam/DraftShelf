@@ -73,64 +73,65 @@
   <div class="checks" id="checksList"></div>
   <button class="btn-recheck" id="btnRecheck">Recheck</button>
 </div>
+<script src="js/status_checks.js"></script>
 <script>
 (function(){
-  // Only checks that can actually be confirmed from a plain browser request are listed here --
-  // a check that can only fail with "can't tell" (blocked by CORS, no way to distinguish that
-  // from the service being down) is left out entirely rather than shown as a permanent, useless
-  // "unknown" row. "ok" for most of these just means "the server responded at all" -- a
-  // genuinely down service doesn't return a real HTTP status, it fails to connect.
-  var SUPABASE_URL = 'https://aenpxggiazgwoidjikii.supabase.co';
-  var SUPABASE_ANON_KEY = 'sb_publishable_Zlvw6QuEhRLqmN4EXXgeKg_fneHO7sM'; // same public, safe-to-embed key js/00_supabase.js already ships client-side
-
-  var CHECKS = [
-    { name: 'Sign-in & data', run: function(){
-        return fetch(SUPABASE_URL + '/auth/v1/settings', { headers: { apikey: SUPABASE_ANON_KEY } }).then(function(r){ return r.ok; });
-    }},
-    // One row, not two -- PDF export itself works as long as EITHER host answers (that's the
-    // whole point of the fallback host existing), so showing them separately would make a
-    // perfectly normal "primary asleep, backup covering it" moment look like a real problem.
-    { name: 'PDF export', run: function(){
-        return Promise.all([
-          fetch('https://ariadaikalam-swat-plant-sender.hf.space/health').then(function(r){ return r.ok; }).catch(function(){ return false; }),
-          fetch('https://resume-forge-k0qt.onrender.com/health').then(function(r){ return r.ok; }).catch(function(){ return false; })
-        ]).then(function(results){ return results[0] || results[1]; });
-    }},
-    { name: 'AI assistant integration', run: function(){
-        return fetch(SUPABASE_URL + '/functions/v1/mcp-api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function(r){ return r.status===401; });
-    }},
-    { name: 'GitHub backup', run: function(){
-        return fetch(SUPABASE_URL + '/functions/v1/github-backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function(r){ return r.status===401; });
-    }}
-  ];
-
+  // STATUS_CHECKS / loadStatusChecksCache / saveStatusChecksCache come from js/status_checks.js
+  // -- shared with the main app, which runs these same checks itself (loadAuthedAppState() ->
+  // runStatusChecksInBackground(), js/06_app.js) right after a real sign-in. That's what makes
+  // opening this page usually show a real answer immediately: by the time anyone gets here, the
+  // app has typically already run these checks once during ordinary use and left a result in
+  // this same device-local cache. This page still re-runs every check itself too, every time
+  // it's opened and on every Recheck click -- it just never resets a row back to a bare
+  // "Checking" placeholder to do it; see paintRow()/runAll() below for how that's kept true even
+  // while a fresh check is genuinely in flight.
   var listEl = document.getElementById('checksList');
   var btn = document.getElementById('btnRecheck');
+  var cache = loadStatusChecksCache();
 
-  function runAll(){
+  function paintRow(row, state){
+    // state is 'ok' | 'down' | null (null = never checked on this device before -- the only
+    // case that still shows "Checking", since there is genuinely nothing else to show yet)
+    if(state===null){
+      row.className = 'check';
+      row.querySelector('.check-badge').textContent = 'Checking';
+    } else {
+      row.className = 'check ' + state;
+      row.querySelector('.check-badge').textContent = state==='ok' ? 'Working' : 'Not working';
+    }
+  }
+
+  // forceChecking: true on an explicit Recheck click (show real "Checking" feedback for a
+  // click someone just made -- they asked for a recheck, they should see one happening);
+  // false on the automatic run this page always does on open (show the last saved result
+  // immediately instead -- see the file-level comment above for why).
+  function runAll(forceChecking){
     btn.disabled = true;
     listEl.innerHTML = '';
-    var rows = CHECKS.map(function(check){
+    var rows = STATUS_CHECKS.map(function(check){
       var row = document.createElement('div');
-      row.className = 'check';
-      row.innerHTML = '<div class="dot"></div><div class="check-name">' + check.name + '</div><div class="check-badge">Checking</div>';
+      row.innerHTML = '<div class="dot"></div><div class="check-name">' + check.name + '</div><div class="check-badge"></div>';
       listEl.appendChild(row);
+      var state = forceChecking ? null
+        : (cache.hasOwnProperty(check.name) ? (cache[check.name] ? 'ok' : 'down') : null);
+      paintRow(row, state);
       return { check: check, row: row };
     });
 
     var pending = rows.length;
     rows.forEach(function(entry){
       Promise.resolve().then(entry.check.run).catch(function(){ return false; }).then(function(ok){
-        entry.row.className = 'check ' + (ok ? 'ok' : 'down');
-        entry.row.querySelector('.check-badge').textContent = ok ? 'Working' : 'Not working';
+        cache[entry.check.name] = ok;
+        saveStatusChecksCache(cache);
+        paintRow(entry.row, ok ? 'ok' : 'down');
         pending--;
         if(pending===0) btn.disabled = false;
       });
     });
   }
 
-  btn.addEventListener('click', runAll);
-  runAll();
+  btn.addEventListener('click', function(){ runAll(true); });
+  runAll(false);
 
   var themeBtn = document.getElementById('btnThemeToggleStandalone');
   function paintIcon(){ themeBtn.innerHTML = document.documentElement.getAttribute('data-theme')==='dark' ? '&#9789;' : '&#9788;'; }

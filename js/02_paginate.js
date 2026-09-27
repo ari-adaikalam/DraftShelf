@@ -49,31 +49,23 @@ function glueHeadings(rawUnits){
   return out;
 }
 
-/* Chromium's print-to-PDF pipeline (pdf-service, see CLAUDE.md's "PDF export" section)
-   sometimes measures the same rendered content a few percent taller than the browser's own
-   on-screen getBoundingClientRect() measurement that paginate() uses to pack pages. Packing
-   pages flush to the exact page height risks a real, reproduced bug: the live preview shows
-   N pages while the actual exported PDF spills a line or two onto page N+1, because the
-   print engine's slightly-taller rendering no longer fits what the screen said would fit.
-   This trims the packing capacity slightly so pages always have a little slack to absorb
-   that gap -- applied once, at the capacity passed into packUnits(), not to any element's
-   actual on-screen size (so the live preview's layout is untouched; only how much content
-   paginate() is willing to pack onto one page changes). */
-const PAGE_PRINT_SAFETY_FACTOR = 0.965;
-function applyPrintSafety(usableHeightPx){
-  return usableHeightPx * PAGE_PRINT_SAFETY_FACTOR;
-}
-
 /* Which pages, out of paginate()'s own per-page fill ratios (content height / true usable
    height -- see paginate()'s own PAGE_FILL_RATIOS comment, js/06_app.js), are close enough to
    full that a real screen-vs-print measurement gap could plausibly tip them over the true page
-   boundary -- and so are worth a real server-side verification pass rather than trusting the
-   local, in-browser measurement blindly. The threshold (0.90 by default) is deliberately well
-   above the known historical screen-vs-print variance (~3-5%, the same gap
-   PAGE_PRINT_SAFETY_FACTOR exists for) -- a page comfortably under it has enough headroom that
-   even that variance can't push its real content past the true page height, so it's safe to
-   trust without ever paying for a round trip. Returns page indices (0-based, into the same
-   array PAGE_UNIT_MAP/PAGE_FILL_RATIOS use), not the ratios themselves. */
+   boundary -- and so are worth a real server-side verification pass (pdf-service's own /measure
+   endpoint) rather than trusting the local, in-browser measurement blindly. The threshold (0.90
+   by default) is deliberately well above the known historical screen-vs-print variance (~3-5%)
+   -- a page comfortably under it has enough headroom that even that variance can't push its
+   real content past the true page height, so it's safe to trust without ever paying for a round
+   trip. Returns page indices (0-based, into the same array PAGE_UNIT_MAP/PAGE_FILL_RATIOS use),
+   not the ratios themselves.
+   Neither this threshold nor packUnits() itself apply any capacity-shrinking safety margin of
+   their own -- an earlier applyPrintSafety()/PAGE_PRINT_SAFETY_FACTOR (a 3.5% shrink, applied
+   both here in local packing and inside /measure) was removed entirely on direct request, once
+   every export path was made to force a real, awaited call to /measure before trusting local
+   pagination at all (downloadPdf()'s runLayoutReconciliation(), js/06_app.js) -- with two
+   independent pdf-service hosts, that real Chromium check is trusted as the actual ground truth
+   rather than hedged against with a shrink anywhere in the pipeline. */
 const PAGE_RISK_THRESHOLD = 0.90;
 function pagesAtRisk(fillRatios, threshold){
   const t = threshold==null ? PAGE_RISK_THRESHOLD : threshold;
@@ -82,4 +74,4 @@ function pagesAtRisk(fillRatios, threshold){
   return out;
 }
 
-if(typeof module !== 'undefined') module.exports = { packUnits, glueHeadings, applyPrintSafety, PAGE_PRINT_SAFETY_FACTOR, pagesAtRisk, PAGE_RISK_THRESHOLD };
+if(typeof module !== 'undefined') module.exports = { packUnits, glueHeadings, pagesAtRisk, PAGE_RISK_THRESHOLD };
