@@ -126,6 +126,19 @@ var LIB_TAB = 'experience';
 // site after closing it, everything should be collapsed, not expanded." This used to be
 // KV-backed (rf:ui:collapsedPanels, device-local localStorage) specifically so it survived a
 // reload; that's the exact behavior being removed here, not a bug being fixed.
+//
+// Keyed by versionId -> {blockKey: open} -- a real, reported bug ("everything must be
+// collapsed, but that is not working properly"): this used to be a single flat {blockKey:
+// open} map shared across every version, so expanding "Experience" while editing version A
+// and then opening a *different* version B (no reload in between -- just clicking a
+// different Dashboard card, or the Continue-editing pill) incorrectly showed B's own
+// Experience panel already open too, since nothing about switching documents ever reset this.
+// Nesting it per version id fixes the leak (a genuinely different version always starts at
+// its own hardcoded defaults) while keeping the original, still-desired behavior for the
+// *same* version: navigating away (Dashboard/Library/Cover Letter) and back to the version
+// you were already editing -- including via the "Continue editing" nav pill -- still
+// remembers what you had open, since that's still the same in-memory session, just not
+// re-rendered from scratch via a network fetch.
 var PANEL_OPEN_STATE = {};
 var ghPanelOpen = false;
 var apiKeysPanelOpen = false;
@@ -4776,7 +4789,7 @@ function sectionHeadingFieldHtml(token, defaultLabel){
   return `<div class="field section-heading-field"><label>Heading</label><input type="text" data-path="sectionHeadings.${esc(token)}" value="${esc(val)}"></div>`;
 }
 const BUILTIN_SECTION_META = {
-  experience: { label:'Experience', defaultHeading:'Work Experience', defaultOpen:true, body:()=>sectionHeadingFieldHtml('experience','Work Experience')+selectionListHtml('experience') },
+  experience: { label:'Experience', defaultHeading:'Work Experience', defaultOpen:false, body:()=>sectionHeadingFieldHtml('experience','Work Experience')+selectionListHtml('experience') },
   projects:   { label:'Projects',   defaultHeading:'Projects',        defaultOpen:false, body:()=>sectionHeadingFieldHtml('projects','Projects')+selectionListHtml('projects') },
   education:  { label:'Education',  defaultHeading:'Education',       defaultOpen:false, body:()=>sectionHeadingFieldHtml('education','Education')+selectionListHtml('education') },
   skills:     { label:'Skills',     defaultHeading:'Skills',          defaultOpen:false, body:()=>sectionHeadingFieldHtml('skills','Skills')+skillSetSelectorHtml() },
@@ -5507,14 +5520,29 @@ function renderEditor(){
   // re-close every section back to its hardcoded default each time. Keyed by an explicit
   // data-block-key (not the summary's text, which now varies for custom sections and isn't
   // guaranteed unique) rather than DOM node identity, since the set/order of blocks changes.
+  //
+  // Only trust this live capture when #edPanel's own data-rendered-version-id attribute (set
+  // at the bottom of this function, after the rebuild below) still matches the version now
+  // being rendered -- a real, reported bug: openEditor() reassigns CURRENT_VERSION and calls
+  // this function directly, but never clears #edPanel's *existing* markup first, so at the
+  // moment this runs for a genuinely different version, the DOM here is still whatever the
+  // *previous* version last rendered. Capturing openState unconditionally therefore leaked
+  // that previous version's own open/closed panels into the new one -- the same leak
+  // PANEL_OPEN_STATE's own per-version scoping (see its comment above) fixes for the
+  // *persisted* fallback, but this local, DOM-read capture is checked first and needs the
+  // identical guard, or it wins over PANEL_OPEN_STATE's correct answer anyway.
   const openState = {};
-  panel.querySelectorAll('details.ed-block[data-block-key]').forEach(d=>{ openState[d.dataset.blockKey] = d.open; });
-  // Falls back to PANEL_OPEN_STATE (device-local, KV-backed -- loaded once at sign-in, see
-  // loadAuthedAppState()) before the block's own hardcoded default, so a panel someone
-  // explicitly opened/closed stays that way across a fresh page load too, not just across an
-  // in-session re-render -- openState above only knows about *already-rendered* DOM, which is
-  // empty on the very first render of a freshly opened version.
-  const isOpen = (key, defaultOpen) => (openState[key] !== undefined ? openState[key] : (PANEL_OPEN_STATE[key] !== undefined ? PANEL_OPEN_STATE[key] : defaultOpen)) ? 'open' : '';
+  if(panel.dataset.renderedVersionId === CURRENT_VERSION.id){
+    panel.querySelectorAll('details.ed-block[data-block-key]').forEach(d=>{ openState[d.dataset.blockKey] = d.open; });
+  }
+  // Falls back to PANEL_OPEN_STATE (in-memory, scoped to this version's own id -- see its own
+  // comment above) before the block's own hardcoded default -- openState above only knows
+  // about *already-rendered* DOM, which is empty on the very first render of a freshly opened
+  // version, so this is what lets navigating away from and back to the *same* version (no
+  // reload) remember what was open. Deliberately keyed by CURRENT_VERSION.id, not just
+  // blockKey -- a *different* version's own entry (if any) never leaks in here.
+  const versionPanelState = PANEL_OPEN_STATE[CURRENT_VERSION.id] || {};
+  const isOpen = (key, defaultOpen) => (openState[key] !== undefined ? openState[key] : (versionPanelState[key] !== undefined ? versionPanelState[key] : defaultOpen)) ? 'open' : '';
 
   // The panel's own block order follows CURRENT_VERSION.sectionOrder directly -- reordering
   // a section (the move-section buttons in each block's own summary) now visibly reorders
@@ -5568,14 +5596,15 @@ function renderEditor(){
     : '';
   panel.innerHTML = `
     ${standaloneBannerHtml}
-    <details class="ed-block" data-block-key="job-details" ${isOpen('job-details', true)}><summary>Job details</summary>${jobMetaFields()}</details>
+    <details class="ed-block" data-block-key="job-details" ${isOpen('job-details', false)}><summary>Job details</summary>${jobMetaFields()}</details>
     <details class="ed-block" data-block-key="fill-with-tag" ${isOpen('fill-with-tag', false)}><summary>Fill in with tag</summary>${fillWithTagHtml()}</details>
-    <details class="ed-block" data-block-key="summary" ${isOpen('summary', true)}><summary>Summary</summary>${summarySelectorHtml()}</details>
+    <details class="ed-block" data-block-key="summary" ${isOpen('summary', false)}><summary>Summary</summary>${summarySelectorHtml()}</details>
     ${sectionBlocksHtml}
     ${notIncludedCustomHtml}
     <div style="margin:-4px 0 12px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-ghost btn-sm" data-action="ed-add-entry" data-kind="customSections">+ Add custom section</button>${isStandaloneVersion()?`<button class="btn btn-ghost btn-sm" data-action="open-library-picker" data-kind="customSections">+ Add from my Library</button>`:''}</div>
     <details class="ed-block" data-block-key="style" ${isOpen('style', false)}><summary>Style</summary>${stylePanelHtml(CURRENT_VERSION.style, 'style', CURRENT_VERSION.pageSize, 'pageSize')}</details>
   `;
+  panel.dataset.renderedVersionId = CURRENT_VERSION.id;
   renderPreview();
 }
 // Same two-part debounce split as scheduleLibrarySave() above -- see its comment.
@@ -5906,7 +5935,7 @@ function buildBulletList(bullets){
 function buildExperienceEntryNode(e){
   const wrap=document.createElement('div');
   const slots = locationDatesSlots(e.location, e.dates);
-  wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${esc(e.tag)})</span>`:''), slots.row1Right));
+  wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${renderInlineMarkup(e.tag)})</span>`:''), slots.row1Right));
   wrap.appendChild(buildRowFlex(bd(e.role,'role'), slots.row2Right));
   if(e.bullets.length) wrap.appendChild(buildBulletList(e.bullets));
   return wrap;
@@ -5940,7 +5969,7 @@ function buildExperiencePositionNode(item){
   // dates print exactly where they always have.
   if(item.__firstOfEntry){
     const slots = locationDatesSlots(p.location||e.location, p.dates);
-    wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${esc(e.tag)})</span>`:''), slots.row1Right));
+    wrap.appendChild(buildRowFlex(bd(e.company,'company')+(e.tag?` <span style="font-weight:400;">(${renderInlineMarkup(e.tag)})</span>`:''), slots.row1Right));
     wrap.appendChild(buildRowFlex(bd(p.role,'role'), slots.row2Right));
   } else {
     wrap.appendChild(buildRowFlex(bd(p.role,'role'), p.dates));
@@ -6181,15 +6210,23 @@ function paginate(){
   units.forEach(u=> host.appendChild(u.node));
   const heights = units.map(u=> u.node.getBoundingClientRect().height);
 
-  const packed = packUnits(units.map((u,i)=>({height:heights[i], gapBefore:u.gapBefore*PT2PX})), applyPrintSafety(usableHeightPx));
+  // Packs against the true, un-shrunk usableHeightPx -- no safety-margin shrink anywhere in the
+  // pipeline anymore (see CLAUDE.md's own history on the applyPrintSafety() margin this call
+  // site, and pdf-service's own /measure endpoint, both used to apply -- removed entirely on
+  // direct request, once every export path was made to force a real, awaited reconciliation
+  // check first). A page this packs right up to 100% of true capacity crosses
+  // PAGE_RISK_THRESHOLD and gets a real, awaited Chromium-verified correction
+  // (runLayoutReconciliation(), called directly from downloadPdf() and awaited inside
+  // get-page-layout.js/export-pdf.js/scripts/download_pdf.js) before any export ever uses it --
+  // with two independent pdf-service hosts, that check is trusted as the actual ground truth
+  // rather than hedged against with a shrink anywhere in the pipeline.
+  const packed = packUnits(units.map((u,i)=>({height:heights[i], gapBefore:u.gapBefore*PT2PX})), usableHeightPx);
 
   // PAGE_UNIT_MAP/PAGE_FILL_RATIOS -- the shared foundation both the MCP page-break-detail
   // tool and the preview/export reconciliation feature read after paginate() runs. Fill ratio
-  // is measured against the TRUE usableHeightPx (not the safety-shrunk capacity packUnits()
-  // itself just packed against), since it's meant to answer "how physically full is this page,
-  // really" for risk detection -- packing against the shrunk capacity already leaves every
-  // page's *measured* content under 100% of the true height by construction, so a page whose
-  // measured content is itself close to the true 100% is the one genuinely at risk of a
+  // is measured against the same true usableHeightPx packing now uses directly, since it's
+  // meant to answer "how physically full is this page, really" for risk detection -- a page
+  // whose measured content is close to the true 100% is the one genuinely at risk of a
   // screen-vs-print measurement gap tipping it over, and the one worth a real server check.
   window.PAGE_UNIT_MAP = packed.map(indices => indices.map(idx => units[idx].id));
   window.PAGE_FILL_RATIOS = packed.map(indices => {
@@ -6300,7 +6337,12 @@ function rebuildPagesFromAuthoritativeLayout(pages){
 // instant and purely local for every render; this only ever fires a network request once
 // typing has settled AND at least one page is close enough to full that the known
 // screen-vs-print measurement gap could plausibly change the real outcome.
-var scheduleLayoutReconciliation = debounce(async function(){
+// Factored out from the debounced wrapper below so downloadPdf() can force an immediate,
+// awaited check right before export -- clicking Download shortly after an edit shouldn't have
+// to wait out the normal 800ms typing-settle debounce (or worse, export whatever #pagesWrap
+// showed before that debounce ever fired) just to get the same guarantee a few seconds of
+// waiting would have given it anyway.
+async function runLayoutReconciliation(){
   if(VIEW!=='editor' || !CURRENT_VERSION) return;
   if(!window.PAGE_FILL_RATIOS || !window.PAGE_UNIT_MAP) return;
   const risky = pagesAtRisk(window.PAGE_FILL_RATIOS);
@@ -6345,7 +6387,8 @@ var scheduleLayoutReconciliation = debounce(async function(){
   }catch(e){
     setLayoutReconciliationStatus(null);
   }
-}, 800);
+}
+var scheduleLayoutReconciliation = debounce(runLayoutReconciliation, 800);
 
 /* ===== exports ===== */
 // Builds a small, fully self-contained HTML document from the *already-paginated* live
@@ -6447,6 +6490,50 @@ function warmPdfServices(){
     window.fetch(healthUrl, { method:'GET' }).catch(()=>{});
   });
 }
+// Both free tiers still go back to sleep after ~15 min idle even mid-session (the primary's
+// own UptimeRobot ping is external to this tab and on its own schedule; the fallback has no
+// such external keep-alive at all -- see "Deployment" in CLAUDE.md) -- the one-shot warm-up
+// above only covers the moment right after sign-in, not a long, still-open session. This
+// re-pings both hosts every 10 minutes (comfortably under that ~15 min window) for as long as
+// the tab is actually visible -- gated on document.visibilityState so a backgrounded/minimized
+// tab (nobody actually using it right now) doesn't keep two remote hosts awake for no reason.
+// Started once per sign-in (loadAuthedAppState()) and stopped on sign-out
+// (showSignedOutState()); PDF_WARMUP_TIMER is cleared before being reassigned so repeated
+// sign-ins in the same tab session can never stack more than one interval.
+var PDF_WARMUP_TIMER = null;
+function startPdfWarmupKeepAlive(){
+  if(PDF_WARMUP_TIMER) clearInterval(PDF_WARMUP_TIMER);
+  PDF_WARMUP_TIMER = setInterval(()=>{
+    if(document.visibilityState === 'visible') warmPdfServices();
+  }, 10*60*1000);
+  // Node's setInterval return value carries unref() (real browsers' doesn't) -- without this,
+  // a real, reported gap found while testing this exact change: any jsdom test script that
+  // signs in never exits on its own afterward, since Node's event loop stays alive as long as
+  // a timer could still fire. unref() tells Node this timer alone shouldn't hold the process
+  // open; it has zero effect on the interval's actual behavior in a browser tab.
+  if(typeof PDF_WARMUP_TIMER.unref === 'function') PDF_WARMUP_TIMER.unref();
+}
+function stopPdfWarmupKeepAlive(){
+  if(PDF_WARMUP_TIMER){ clearInterval(PDF_WARMUP_TIMER); PDF_WARMUP_TIMER = null; }
+}
+// Same idea as startPdfWarmupKeepAlive() above, for the full set of status checks (js/
+// status_checks.js) rather than just the two pdf-service hosts -- runStatusChecksInBackground()
+// at sign-in (loadAuthedAppState()) only ever populates the shared cache once; without this, it
+// would silently go stale for the rest of a long open session, and status.html (which trusts
+// that cache to paint instantly, see its own comment) would keep showing an increasingly old
+// answer. Re-runs every 2 minutes, only while the tab is actually visible, same
+// visibility/unref/stack-guard reasoning as the pdf-only interval above.
+var STATUS_CHECKS_TIMER = null;
+function startStatusChecksKeepAlive(){
+  if(STATUS_CHECKS_TIMER) clearInterval(STATUS_CHECKS_TIMER);
+  STATUS_CHECKS_TIMER = setInterval(()=>{
+    if(document.visibilityState === 'visible') runStatusChecksInBackground();
+  }, 2*60*1000);
+  if(typeof STATUS_CHECKS_TIMER.unref === 'function') STATUS_CHECKS_TIMER.unref();
+}
+function stopStatusChecksKeepAlive(){
+  if(STATUS_CHECKS_TIMER){ clearInterval(STATUS_CHECKS_TIMER); STATUS_CHECKS_TIMER = null; }
+}
 async function waitForFallbackHealth(healthUrl, {intervalMs=3000, timeoutMs=90000}={}){
   const start=Date.now();
   let attempt=0;
@@ -6470,6 +6557,12 @@ async function downloadPdf(){
   try{
     const { data: { session } } = await window.supabase.auth.getSession();
     if(!session) throw new Error('not signed in');
+    // Force an immediate, awaited reconciliation check right now rather than trusting whatever
+    // the normal debounced cycle has (or hasn't yet) settled on -- clicking Download shortly
+    // after an edit shouldn't be able to export a page's pre-correction local pagination just
+    // because the 800ms typing-settle debounce hadn't fired yet. A page that isn't at risk (the
+    // common case) returns immediately with no network call, same as the debounced path.
+    await runLayoutReconciliation();
     const pageInches = CURRENT_VERSION.pageSize==='Letter' ? {w:8.5,h:11} : {w:8.27,h:11.69};
     const payload = JSON.stringify({ html: buildPrintHtml(), pageInches });
     const headers = { 'Content-Type':'application/json', Authorization:'Bearer '+session.access_token };
@@ -6519,6 +6612,10 @@ async function downloadDocx(){
 async function loadAuthedAppState(){
   AUTH_MESSAGE = null;
   warmPdfServices(); // fire-and-forget -- see its own comment
+  startPdfWarmupKeepAlive(); // keeps both hosts awake for the rest of this signed-in session
+  runStatusChecksInBackground(); // js/status_checks.js -- so status.html has a real, fresh
+  // result waiting for it already, instead of starting from nothing every time it's opened
+  startStatusChecksKeepAlive(); // keeps that same result from going stale for the rest of the session
   // These five reads are all independent of each other -- firing them together instead of one
   // at a time is what actually shortens the visible "signed in, but the app still looks
   // signed-out/blank" gap on a fresh page load or reload, on top of index.html's own fix (see
@@ -6609,6 +6706,8 @@ async function loadAuthedAppState(){
 
 }
 function showSignedOutState(){
+  stopPdfWarmupKeepAlive(); // no signed-in session left to keep either host warm for
+  stopStatusChecksKeepAlive(); // ...or a session to keep the status cache fresh for
   LIBRARY = null; CURRENT_VERSION = null; VERSIONS_INDEX = []; VERSION_REVISIONS = {}; GITHUB_CONFIG = null;
   PREFERENCES = null;
   TRASH_VERSIONS = []; TRASH_COUNT = 0; trashPanelOpen = false; renderTrashPanel();
@@ -6889,8 +6988,9 @@ async function init(){
   // back up.
   document.getElementById('edPanel').addEventListener('toggle', (ev)=>{
     const d = ev.target.closest && ev.target.closest('details.ed-block[data-block-key]');
-    if(!d) return;
-    PANEL_OPEN_STATE[d.dataset.blockKey] = d.open;
+    if(!d || !CURRENT_VERSION) return;
+    if(!PANEL_OPEN_STATE[CURRENT_VERSION.id]) PANEL_OPEN_STATE[CURRENT_VERSION.id] = {};
+    PANEL_OPEN_STATE[CURRENT_VERSION.id][d.dataset.blockKey] = d.open;
   }, true);
   document.getElementById('btnBackDash').addEventListener('click', ()=> switchView('dashboard'));
   document.getElementById('btnDownloadPdf').addEventListener('click', downloadPdf);

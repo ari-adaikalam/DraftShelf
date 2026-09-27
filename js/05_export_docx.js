@@ -118,10 +118,17 @@ function buildDocxDocument(docxLib, resolved, style, pageSize, meta, referencesM
         // sibling field, predates the separate tags[] system) prints in the live preview/PDF
         // as "Company (tag)" (buildExperienceEntryNode(), js/06_app.js) but was missing here
         // entirely -- a real, documented gap (CLAUDE.md's "Skill Sets" section notes it under
-        // "still missing from DOCX export"). Appended as its own non-bold run, matching the
-        // preview's `font-weight:400` treatment regardless of whether Company itself is bold.
+        // "still missing from DOCX export"). Appended as its own non-bold run(s), matching the
+        // preview's `font-weight:400` treatment regardless of whether Company itself is bold --
+        // the parens themselves stay plain text, never markup-parsed, only the note's own
+        // content between them goes through splitBoldRuns() for **bold**/*italic* support,
+        // same as bullets already have.
         const companyRuns = [ new TextRun({...bd(e.company,'company'), font:FONT, size:pt2half(style.fsBody)}) ];
-        if(e.tag) companyRuns.push(new TextRun({ text:' ('+e.tag+')', font:FONT, size:pt2half(style.fsBody) }));
+        if(e.tag){
+          companyRuns.push(new TextRun({ text:' (', font:FONT, size:pt2half(style.fsBody) }));
+          companyRuns.push(...splitBoldRuns(e.tag, style.fsBody));
+          companyRuns.push(new TextRun({ text:')', font:FONT, size:pt2half(style.fsBody) }));
+        }
         // Multiple positions under one shared company -- the company/tag row prints once,
         // then each position's own role/dates/bullets, matching buildExperiencePositionNode()
         // in js/06_app.js exactly (heading glued to the first position there is purely a
