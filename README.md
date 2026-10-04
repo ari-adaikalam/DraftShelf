@@ -1,5 +1,5 @@
 # DraftShelf 📄✨
-<img width="1200" height="629" alt="DraftShelf - Tailor the content. DraftShelf handles the rest." src="assets/og-image.png" />
+<img width="1200" height="629" alt="DraftShelf - Like GitHub, for your resumes." src="assets/og-image.png" />
 
 ## Overview
 
