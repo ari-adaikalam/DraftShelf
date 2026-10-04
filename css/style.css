@@ -800,6 +800,9 @@ label.chk-card:has(input:checked){border-color:var(--accent);background:linear-g
    --font-display definition at the top of this file for the full reasoning. */
 .auth-landing-copy h1{font-family:var(--font-display);font-weight:600;font-size:42px;line-height:1.15;margin:0 0 16px;color:var(--text);letter-spacing:-0.01em;}
 .auth-hero-nowrap{white-space:nowrap;}
+.auth-landing-copy h1 em{font-style:italic;font-weight:500;color:var(--accent-dark);}
+[data-theme="dark"] .auth-landing-copy h1 em{color:var(--accent-light);}
+.auth-hero-tagline{font-size:19px;font-weight:600;line-height:1.4;color:var(--text);margin:0 0 12px;}
 .auth-hero-subhead{font-size:15px;line-height:1.65;color:var(--text-muted);margin:0 0 28px;max-width:480px;}
 .auth-hero-ctas{display:flex;gap:12px;}
 .auth-cta-primary,.auth-cta-secondary{padding:12px 22px;font-size:14px;}
@@ -891,6 +894,9 @@ label.chk-card:has(input:checked){border-color:var(--accent);background:linear-g
    own max-width, so raising that max-width alone did nothing visible ("they are still narrow").
    .auth-box's own width:100% (below) is what lets it actually reach that cap once centered. */
 .auth-page{min-height:100%;display:flex;flex-direction:column;align-items:center;}
+/* .view carries 60px of bottom padding for the app's own screens; on the auth screens that padding
+   sat under the footer, lifting it off the bottom edge of the window. */
+#viewAuth{padding-bottom:0;}
 .auth-legal-links{margin-top:auto;padding:40px 0 24px;text-align:center;font-size:11px;color:var(--text-faint);}
 .auth-legal-links a{color:var(--text-faint);}
 
