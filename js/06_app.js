@@ -582,7 +582,8 @@ function authLandingHtml(){
   </div>`;
   return `<div class="auth-landing">
     <div class="auth-landing-copy">
-      <h1>Tailor the content.<br><span class="auth-hero-nowrap">DraftShelf handles the rest.</span></h1>
+      <h1>Like GitHub,<br><span class="auth-hero-nowrap">for your <em>resumes.</em></span></h1>
+      <p class="auth-hero-tagline">Tailor the content. DraftShelf handles the rest.</p>
       <p class="auth-hero-subhead">Keep every job, project, and bullet point you have ever written in one
       library. Choose what to include for each application, and the formatting takes care of itself, so
       every version comes out clean and consistent, without you touching a single margin in Word.</p>
